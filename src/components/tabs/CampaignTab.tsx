@@ -305,6 +305,80 @@ function AffiliateLinkManager({ links }: { links: AffiliateLink[] }) {
   );
 }
 
+// 콘텐츠 카드 컴포넌트 - 이미지 로드 실패 처리
+function ContentCard({ content, onDownload }: { content: ContentItem; onDownload: (content: ContentItem) => void }) {
+  const [imageError, setImageError] = useState(false);
+
+  return (
+    <div className="group relative rounded-xl overflow-hidden bg-slate-100">
+      {imageError || !content.thumbnail ? (
+        // 이미지 로드 실패 시 대체 UI
+        <div className="w-full aspect-[3/4] bg-gradient-to-br from-pink-100 to-purple-100 flex flex-col items-center justify-center gap-2">
+          <div className="w-12 h-12 bg-gradient-to-br from-pink-500 via-purple-500 to-orange-500 rounded-xl flex items-center justify-center">
+            <Image size={24} className="text-white" />
+          </div>
+          <span className="text-xs text-slate-500 text-center px-2">{content.influencerName}</span>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span className="flex items-center gap-1">
+              <Heart size={10} /> {formatNumber(content.likes)}
+            </span>
+            <span className="flex items-center gap-1">
+              <MessageCircle size={10} /> {formatNumber(content.comments)}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <img
+          src={content.thumbnail}
+          alt={content.influencerName}
+          className="w-full aspect-[3/4] object-cover"
+          onError={() => setImageError(true)}
+        />
+      )}
+      {/* Type Badge */}
+      <div className="absolute top-2 left-2">
+        {content.type === 'video' || content.type === 'reel' ? (
+          <div className="p-1.5 bg-black/60 rounded-lg">
+            <Video size={14} className="text-white" />
+          </div>
+        ) : (
+          <div className="p-1.5 bg-black/60 rounded-lg">
+            <Image size={14} className="text-white" />
+          </div>
+        )}
+      </div>
+      {/* Hover Overlay */}
+      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+        <div className="text-white text-sm font-medium text-center px-2">{content.influencerName}</div>
+        <div className="flex items-center gap-3 text-white/80 text-xs">
+          <span className="flex items-center gap-1">
+            <Heart size={12} /> {formatNumber(content.likes)}
+          </span>
+          <span className="flex items-center gap-1">
+            <MessageCircle size={12} /> {formatNumber(content.comments)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <a
+            href={content.originalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+          >
+            <ExternalLink size={16} className="text-white" />
+          </a>
+          <button
+            onClick={() => onDownload(content)}
+            className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+          >
+            <Download size={16} className="text-white" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ContentGallery({ contents }: { contents: ContentItem[] }) {
   const handleDownload = (content: ContentItem) => {
     // 실제 구현 시 서명된 URL을 사용하여 다운로드
@@ -323,53 +397,7 @@ function ContentGallery({ contents }: { contents: ContentItem[] }) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {contents.map((content) => (
-          <div key={content.id} className="group relative rounded-xl overflow-hidden bg-slate-100">
-            <img
-              src={content.thumbnail}
-              alt={content.influencerName}
-              className="w-full aspect-[3/4] object-cover"
-            />
-            {/* Type Badge */}
-            <div className="absolute top-2 left-2">
-              {content.type === 'video' || content.type === 'reel' ? (
-                <div className="p-1.5 bg-black/60 rounded-lg">
-                  <Video size={14} className="text-white" />
-                </div>
-              ) : (
-                <div className="p-1.5 bg-black/60 rounded-lg">
-                  <Image size={14} className="text-white" />
-                </div>
-              )}
-            </div>
-            {/* Hover Overlay */}
-            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-              <div className="text-white text-sm font-medium">{content.influencerName}</div>
-              <div className="flex items-center gap-3 text-white/80 text-xs">
-                <span className="flex items-center gap-1">
-                  <Heart size={12} /> {formatNumber(content.likes)}
-                </span>
-                <span className="flex items-center gap-1">
-                  <MessageCircle size={12} /> {formatNumber(content.comments)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <a
-                  href={content.originalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-                >
-                  <ExternalLink size={16} className="text-white" />
-                </a>
-                <button
-                  onClick={() => handleDownload(content)}
-                  className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-                >
-                  <Download size={16} className="text-white" />
-                </button>
-              </div>
-            </div>
-          </div>
+          <ContentCard key={content.id} content={content} onDownload={handleDownload} />
         ))}
       </div>
     </div>
