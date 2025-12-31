@@ -424,14 +424,75 @@ function ContentGallery({ contents }: { contents: ContentItem[] }) {
   );
 }
 
-function AIAnalysisCard({ analysis }: { analysis: AIAnalysis }) {
+function AIAnalysisCard({
+  analysis,
+  onAnalyze,
+  loading,
+}: {
+  analysis: AIAnalysis | null;
+  onAnalyze: () => void;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="bg-gradient-to-br from-primary-950 to-primary-900 rounded-2xl shadow-sm p-6 text-white">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-2 bg-white/10 rounded-xl">
+            <Sparkles size={20} className="text-amber-400" />
+          </div>
+          <h3 className="text-lg font-semibold">AI 캠페인 분석</h3>
+        </div>
+        <div className="flex flex-col items-center justify-center py-8">
+          <Loader2 className="w-8 h-8 animate-spin text-amber-400 mb-3" />
+          <p className="text-primary-200 text-sm">AI가 캠페인을 분석하고 있습니다...</p>
+          <p className="text-primary-400 text-xs mt-1">잠시만 기다려주세요</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!analysis) {
+    return (
+      <div className="bg-gradient-to-br from-primary-950 to-primary-900 rounded-2xl shadow-sm p-6 text-white">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-2 bg-white/10 rounded-xl">
+            <Sparkles size={20} className="text-amber-400" />
+          </div>
+          <h3 className="text-lg font-semibold">AI 캠페인 분석</h3>
+        </div>
+        <div className="flex flex-col items-center justify-center py-8">
+          <p className="text-primary-200 text-sm mb-4 text-center">
+            AI가 캠페인 데이터를 분석하여<br />
+            인사이트와 추천 전략을 제공합니다.
+          </p>
+          <button
+            onClick={onAnalyze}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-primary-950 font-medium rounded-lg transition-colors"
+          >
+            <Sparkles size={16} />
+            AI 분석 시작
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gradient-to-br from-primary-950 to-primary-900 rounded-2xl shadow-sm p-6 text-white">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-white/10 rounded-xl">
-          <Sparkles size={20} className="text-amber-400" />
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-white/10 rounded-xl">
+            <Sparkles size={20} className="text-amber-400" />
+          </div>
+          <h3 className="text-lg font-semibold">AI 캠페인 분석</h3>
         </div>
-        <h3 className="text-lg font-semibold">AI 캠페인 분석</h3>
+        <button
+          onClick={onAnalyze}
+          className="text-xs text-primary-300 hover:text-white transition-colors flex items-center gap-1"
+        >
+          <Loader2 size={12} className={loading ? 'animate-spin' : 'hidden'} />
+          다시 분석
+        </button>
       </div>
 
       <p className="text-primary-100 text-sm leading-relaxed mb-5 pb-5 border-b border-primary-800">
@@ -1130,22 +1191,126 @@ function convertNotionMention(mention: NotionMention): ContentItem {
   };
 }
 
+// AI 분석 API 호출 함수
+async function fetchAIAnalysis(
+  campaignName: string,
+  contents: ContentItem[],
+  performanceData: {
+    totalLikes: number;
+    totalComments: number;
+    totalShares: number;
+    totalViews: number;
+    contentCount: number;
+    topInfluencers: { name: string; likes: number; comments: number }[];
+  }
+): Promise<AIAnalysis> {
+  const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:3000';
+  const response = await fetch(`${API_BASE}/api/analyze`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      campaignName,
+      contents: contents.map((c) => ({
+        influencerName: c.influencerName,
+        type: c.type,
+        likes: c.likes,
+        comments: c.comments,
+        views: c.views,
+        caption: c.caption,
+        postedAt: c.postedAt,
+      })),
+      performanceData,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('AI 분석 요청 실패');
+  }
+
+  return response.json();
+}
+
 // 캠페인 상세 뷰 컴포넌트
 function CampaignDetailView({
   campaign,
   onBack: _onBack,
   affiliateLinks,
-  aiAnalysis,
 }: {
   campaign: CampaignListItem;
   onBack: () => void;
   affiliateLinks: AffiliateLink[] | null;
-  aiAnalysis: AIAnalysis | null;
 }) {
   const [activeSubTab, setActiveSubTab] = useState<'performance' | 'seeding' | 'affiliate' | 'content'>('performance');
   const [notionSeeding, setNotionSeeding] = useState<SeedingItem[]>([]);
   const [notionContent, setNotionContent] = useState<ContentItem[]>([]);
   const [detailLoading, setDetailLoading] = useState(true);
+  const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  // 성과 데이터 계산
+  const performanceData = useMemo(() => {
+    if (!notionContent || notionContent.length === 0) {
+      return {
+        totalLikes: 0,
+        totalComments: 0,
+        totalShares: 0,
+        totalViews: 0,
+        contentCount: 0,
+        topInfluencers: [],
+      };
+    }
+
+    const totalLikes = notionContent.reduce((sum, c) => sum + (c.likes || 0), 0);
+    const totalComments = notionContent.reduce((sum, c) => sum + (c.comments || 0), 0);
+    const totalShares = notionContent.reduce((sum, c) => sum + (c.shares || 0), 0);
+    const totalViews = notionContent.reduce((sum, c) => sum + (c.views || 0), 0);
+
+    // 인플루언서별 집계
+    const influencerStats = new Map<string, { likes: number; comments: number }>();
+    notionContent.forEach((c) => {
+      const name = c.influencerName || 'Unknown';
+      const existing = influencerStats.get(name) || { likes: 0, comments: 0 };
+      influencerStats.set(name, {
+        likes: existing.likes + (c.likes || 0),
+        comments: existing.comments + (c.comments || 0),
+      });
+    });
+
+    const topInfluencers = Array.from(influencerStats.entries())
+      .map(([name, stats]) => ({ name, ...stats }))
+      .sort((a, b) => b.likes - a.likes)
+      .slice(0, 5);
+
+    return {
+      totalLikes,
+      totalComments,
+      totalShares,
+      totalViews,
+      contentCount: notionContent.length,
+      topInfluencers,
+    };
+  }, [notionContent]);
+
+  // AI 분석 실행
+  const handleAnalyze = async () => {
+    if (notionContent.length === 0) {
+      alert('분석할 콘텐츠가 없습니다.');
+      return;
+    }
+
+    try {
+      setAiLoading(true);
+      const result = await fetchAIAnalysis(campaign.name, notionContent, performanceData);
+      setAiAnalysis(result);
+    } catch (err) {
+      console.error('[AI Analysis] 분석 실패:', err);
+      alert('AI 분석 중 오류가 발생했습니다.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   // Notion에서 상세 데이터 로드
   useEffect(() => {
@@ -1230,7 +1395,13 @@ function CampaignDetailView({
         </div>
 
         {/* AI Analysis Sidebar */}
-        <div>{aiAnalysis && <AIAnalysisCard analysis={aiAnalysis} />}</div>
+        <div>
+          <AIAnalysisCard
+            analysis={aiAnalysis}
+            onAnalyze={handleAnalyze}
+            loading={aiLoading}
+          />
+        </div>
       </div>
     </div>
   );
@@ -1258,7 +1429,7 @@ export function CampaignTab({
   seedingList: _seedingList,
   affiliateLinks,
   contentList: _contentList,
-  aiAnalysis,
+  aiAnalysis: _aiAnalysis,
   loading: _loading,
 }: CampaignTabProps) {
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignListItem | null>(null);
@@ -1312,7 +1483,6 @@ export function CampaignTab({
         campaign={selectedCampaign}
         onBack={() => setSelectedCampaign(null)}
         affiliateLinks={affiliateLinks}
-        aiAnalysis={aiAnalysis}
       />
     );
   }
