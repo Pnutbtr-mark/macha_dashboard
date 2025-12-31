@@ -14,7 +14,6 @@ import {
   Plus,
   Copy,
   Check,
-  Download,
   Link2,
   Package,
   Clock,
@@ -305,89 +304,88 @@ function AffiliateLinkManager({ links }: { links: AffiliateLink[] }) {
   );
 }
 
-// 콘텐츠 카드 컴포넌트 - 이미지 로드 실패 처리
-function ContentCard({ content, onDownload }: { content: ContentItem; onDownload: (content: ContentItem) => void }) {
-  const [imageError, setImageError] = useState(false);
-
+// 콘텐츠 카드 컴포넌트 - Instagram CDN 만료로 썸네일 대신 카드 UI 사용
+function ContentCard({ content }: { content: ContentItem }) {
   return (
-    <div className="group relative rounded-xl overflow-hidden bg-slate-100">
-      {imageError || !content.thumbnail ? (
-        // 이미지 로드 실패 시 대체 UI
-        <div className="w-full aspect-[3/4] bg-gradient-to-br from-pink-100 to-purple-100 flex flex-col items-center justify-center gap-2">
-          <div className="w-12 h-12 bg-gradient-to-br from-pink-500 via-purple-500 to-orange-500 rounded-xl flex items-center justify-center">
-            <Image size={24} className="text-white" />
+    <a
+      href={content.originalUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group block rounded-xl overflow-hidden bg-white border border-slate-200 hover:border-primary-300 hover:shadow-md transition-all"
+    >
+      {/* 상단: 콘텐츠 타입 & 인플루언서 정보 */}
+      <div className="p-3 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+            content.type === 'video' ? 'bg-purple-100' : 'bg-pink-100'
+          }`}>
+            {content.type === 'video' ? (
+              <Video size={14} className="text-purple-600" />
+            ) : (
+              <Image size={14} className="text-pink-600" />
+            )}
           </div>
-          <span className="text-xs text-slate-500 text-center px-2">{content.influencerName}</span>
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="flex items-center gap-1">
-              <Heart size={10} /> {formatNumber(content.likes)}
-            </span>
-            <span className="flex items-center gap-1">
-              <MessageCircle size={10} /> {formatNumber(content.comments)}
-            </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-slate-800 truncate">{content.influencerName}</div>
+            <div className="text-xs text-slate-400">
+              {content.postedAt ? new Date(content.postedAt).toLocaleDateString('ko-KR') : 'Instagram'}
+            </div>
           </div>
-        </div>
-      ) : (
-        <img
-          src={content.thumbnail}
-          alt={content.influencerName}
-          className="w-full aspect-[3/4] object-cover"
-          onError={() => setImageError(true)}
-        />
-      )}
-      {/* Type Badge */}
-      <div className="absolute top-2 left-2">
-        {content.type === 'video' || content.type === 'reel' ? (
-          <div className="p-1.5 bg-black/60 rounded-lg">
-            <Video size={14} className="text-white" />
-          </div>
-        ) : (
-          <div className="p-1.5 bg-black/60 rounded-lg">
-            <Image size={14} className="text-white" />
-          </div>
-        )}
-      </div>
-      {/* Hover Overlay */}
-      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-        <div className="text-white text-sm font-medium text-center px-2">{content.influencerName}</div>
-        <div className="flex items-center gap-3 text-white/80 text-xs">
-          <span className="flex items-center gap-1">
-            <Heart size={12} /> {formatNumber(content.likes)}
-          </span>
-          <span className="flex items-center gap-1">
-            <MessageCircle size={12} /> {formatNumber(content.comments)}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 mt-2">
-          <a
-            href={content.originalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-          >
-            <ExternalLink size={16} className="text-white" />
-          </a>
-          <button
-            onClick={() => onDownload(content)}
-            className="p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-          >
-            <Download size={16} className="text-white" />
-          </button>
         </div>
       </div>
-    </div>
+
+      {/* 중앙: 성과 지표 */}
+      <div className="p-4 bg-gradient-to-br from-slate-50 to-white">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1 text-pink-500 mb-1">
+              <Heart size={14} />
+            </div>
+            <div className="text-lg font-bold text-slate-800">{formatNumber(content.likes)}</div>
+            <div className="text-xs text-slate-400">좋아요</div>
+          </div>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1 text-blue-500 mb-1">
+              <MessageCircle size={14} />
+            </div>
+            <div className="text-lg font-bold text-slate-800">{formatNumber(content.comments)}</div>
+            <div className="text-xs text-slate-400">댓글</div>
+          </div>
+          {(content.views ?? 0) > 0 && (
+            <>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1 text-purple-500 mb-1">
+                  <Eye size={14} />
+                </div>
+                <div className="text-lg font-bold text-slate-800">{formatNumber(content.views ?? 0)}</div>
+                <div className="text-xs text-slate-400">조회수</div>
+              </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1 text-emerald-500 mb-1">
+                  <TrendingUp size={14} />
+                </div>
+                <div className="text-lg font-bold text-slate-800">
+                  {(content.views ?? 0) > 0 ? ((content.likes / (content.views ?? 1)) * 100).toFixed(1) : 0}%
+                </div>
+                <div className="text-xs text-slate-400">참여율</div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 하단: Instagram 링크 */}
+      <div className="px-3 py-2 bg-slate-50 border-t border-slate-100">
+        <div className="flex items-center justify-center gap-1 text-xs text-slate-500 group-hover:text-primary-600 transition-colors">
+          <ExternalLink size={12} />
+          <span>Instagram에서 보기</span>
+        </div>
+      </div>
+    </a>
   );
 }
 
 function ContentGallery({ contents }: { contents: ContentItem[] }) {
-  const handleDownload = (content: ContentItem) => {
-    // 실제 구현 시 서명된 URL을 사용하여 다운로드
-    const link = document.createElement('a');
-    link.href = content.downloadUrl;
-    link.download = `content-${content.id}.${content.type === 'image' ? 'jpg' : 'mp4'}`;
-    link.click();
-  };
-
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
       <div className="flex items-center justify-between mb-4">
@@ -397,7 +395,7 @@ function ContentGallery({ contents }: { contents: ContentItem[] }) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {contents.map((content) => (
-          <ContentCard key={content.id} content={content} onDownload={handleDownload} />
+          <ContentCard key={content.id} content={content} />
         ))}
       </div>
     </div>
