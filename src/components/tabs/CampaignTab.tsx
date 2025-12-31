@@ -165,11 +165,21 @@ function SeedingManagement({ seedingList }: { seedingList: SeedingItem[] }) {
               <tr key={item.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <img
-                      src={item.influencer.thumbnail}
-                      alt={item.influencer.name}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
+                    {item.influencer.thumbnail && item.influencer.thumbnail !== 'https://via.placeholder.com/100' ? (
+                      <img
+                        src={item.influencer.thumbnail}
+                        alt={item.influencer.name}
+                        className="w-8 h-8 rounded-full object-cover bg-slate-100"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-bold ${item.influencer.thumbnail && item.influencer.thumbnail !== 'https://via.placeholder.com/100' ? 'hidden' : ''}`}>
+                      {item.influencer.name.charAt(0).toUpperCase()}
+                    </div>
                     <div>
                       <div className="font-medium text-sm text-primary-950">{item.influencer.name}</div>
                       <div className="text-xs text-slate-500">{item.influencer.handle}</div>
