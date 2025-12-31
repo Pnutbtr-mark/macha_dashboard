@@ -31,6 +31,14 @@
       "dest": "/api/dashboard.js"
     },
     {
+      "src": "/api/seeding",
+      "dest": "/api/seeding.js"
+    },
+    {
+      "src": "/api/debug-schema",
+      "dest": "/api/debug-schema.js"
+    },
+    {
       "src": "/assets/(.*)",
       "dest": "/dist/assets/$1"
     },
