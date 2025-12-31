@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -482,8 +482,27 @@ function CampaignKPICard({
   );
 }
 
+// 성과 데이터 타입
+interface PerformanceData {
+  totalLikes: number;
+  totalComments: number;
+  totalShares: number;
+  totalViews: number;
+  contentCount: number;
+  topInfluencers: { name: string; likes: number; comments: number }[];
+  dailyData: { date: string; likes: number; comments: number; shares: number; views: number }[];
+}
+
 // 캠페인 성과 컴포넌트
-function CampaignPerformance({ campaign: _campaign }: { campaign: CampaignListItem }) {
+function CampaignPerformance({
+  campaign: _campaign,
+  contents,
+  loading
+}: {
+  campaign: CampaignListItem;
+  contents: ContentItem[];
+  loading: boolean;
+}) {
   const [periodFilter, setPeriodFilter] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
   const [customDateRange, setCustomDateRange] = useState({
     start: '2024-12-01',
@@ -491,189 +510,102 @@ function CampaignPerformance({ campaign: _campaign }: { campaign: CampaignListIt
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // 기간별 차트 데이터
-  const chartData = {
-    daily: {
-      impressions: [
-        { date: '12/01', value: 280000 },
-        { date: '12/02', value: 320000 },
-        { date: '12/03', value: 450000 },
-        { date: '12/04', value: 380000 },
-        { date: '12/05', value: 520000 },
-        { date: '12/06', value: 480000 },
-        { date: '12/07', value: 550000 },
-      ],
-      likes: [
-        { date: '12/01', value: 8500 },
-        { date: '12/02', value: 12000 },
-        { date: '12/03', value: 15200 },
-        { date: '12/04', value: 11800 },
-        { date: '12/05', value: 18500 },
-        { date: '12/06', value: 14200 },
-        { date: '12/07', value: 16800 },
-      ],
-      views: [
-        { date: '12/01', value: 120000 },
-        { date: '12/02', value: 180000 },
-        { date: '12/03', value: 210000 },
-        { date: '12/04', value: 165000 },
-        { date: '12/05', value: 245000 },
-        { date: '12/06', value: 195000 },
-        { date: '12/07', value: 230000 },
-      ],
-      engagement: [
-        { date: '12/01', shares: 1200, comments: 850 },
-        { date: '12/02', shares: 1800, comments: 1100 },
-        { date: '12/03', shares: 2100, comments: 1450 },
-        { date: '12/04', shares: 1650, comments: 1200 },
-        { date: '12/05', shares: 2450, comments: 1680 },
-        { date: '12/06', shares: 1950, comments: 1320 },
-        { date: '12/07', shares: 2300, comments: 1550 },
-      ],
-    },
-    weekly: {
-      impressions: [
-        { date: '11월 1주', value: 1850000 },
-        { date: '11월 2주', value: 2120000 },
-        { date: '11월 3주', value: 2450000 },
-        { date: '11월 4주', value: 2680000 },
-        { date: '12월 1주', value: 2980000 },
-        { date: '12월 2주', value: 3450000 },
-      ],
-      likes: [
-        { date: '11월 1주', value: 52000 },
-        { date: '11월 2주', value: 61000 },
-        { date: '11월 3주', value: 68000 },
-        { date: '11월 4주', value: 75000 },
-        { date: '12월 1주', value: 82000 },
-        { date: '12월 2주', value: 89500 },
-      ],
-      views: [
-        { date: '11월 1주', value: 680000 },
-        { date: '11월 2주', value: 780000 },
-        { date: '11월 3주', value: 920000 },
-        { date: '11월 4주', value: 1050000 },
-        { date: '12월 1주', value: 1150000 },
-        { date: '12월 2주', value: 1250000 },
-      ],
-      engagement: [
-        { date: '11월 1주', shares: 7200, comments: 4800 },
-        { date: '11월 2주', shares: 8400, comments: 5600 },
-        { date: '11월 3주', shares: 9600, comments: 6200 },
-        { date: '11월 4주', shares: 10800, comments: 7100 },
-        { date: '12월 1주', shares: 11500, comments: 7800 },
-        { date: '12월 2주', shares: 12300, comments: 8470 },
-      ],
-    },
-    monthly: {
-      impressions: [
-        { date: '8월', value: 4200000 },
-        { date: '9월', value: 5800000 },
-        { date: '10월', value: 7500000 },
-        { date: '11월', value: 9100000 },
-        { date: '12월', value: 3450000 },
-      ],
-      likes: [
-        { date: '8월', value: 125000 },
-        { date: '9월', value: 168000 },
-        { date: '10월', value: 215000 },
-        { date: '11월', value: 256000 },
-        { date: '12월', value: 89500 },
-      ],
-      views: [
-        { date: '8월', value: 1800000 },
-        { date: '9월', value: 2450000 },
-        { date: '10월', value: 3200000 },
-        { date: '11월', value: 3850000 },
-        { date: '12월', value: 1250000 },
-      ],
-      engagement: [
-        { date: '8월', shares: 18500, comments: 12400 },
-        { date: '9월', shares: 25600, comments: 17200 },
-        { date: '10월', shares: 34200, comments: 22800 },
-        { date: '11월', shares: 42500, comments: 28600 },
-        { date: '12월', shares: 12300, comments: 8470 },
-      ],
-    },
-    custom: {
-      impressions: [
-        { date: '12/01', value: 280000 },
-        { date: '12/02', value: 320000 },
-        { date: '12/03', value: 450000 },
-        { date: '12/04', value: 380000 },
-        { date: '12/05', value: 520000 },
-        { date: '12/06', value: 480000 },
-        { date: '12/07', value: 550000 },
-        { date: '12/08', value: 420000 },
-        { date: '12/09', value: 380000 },
-        { date: '12/10', value: 510000 },
-        { date: '12/11', value: 620000 },
-        { date: '12/12', value: 580000 },
-        { date: '12/13', value: 640000 },
-        { date: '12/14', value: 690000 },
-      ],
-      likes: [
-        { date: '12/01', value: 8500 },
-        { date: '12/02', value: 12000 },
-        { date: '12/03', value: 15200 },
-        { date: '12/04', value: 11800 },
-        { date: '12/05', value: 18500 },
-        { date: '12/06', value: 14200 },
-        { date: '12/07', value: 16800 },
-        { date: '12/08', value: 13500 },
-        { date: '12/09', value: 11200 },
-        { date: '12/10', value: 17800 },
-        { date: '12/11', value: 21500 },
-        { date: '12/12', value: 19200 },
-        { date: '12/13', value: 22800 },
-        { date: '12/14', value: 25100 },
-      ],
-      views: [
-        { date: '12/01', value: 120000 },
-        { date: '12/02', value: 180000 },
-        { date: '12/03', value: 210000 },
-        { date: '12/04', value: 165000 },
-        { date: '12/05', value: 245000 },
-        { date: '12/06', value: 195000 },
-        { date: '12/07', value: 230000 },
-        { date: '12/08', value: 185000 },
-        { date: '12/09', value: 160000 },
-        { date: '12/10', value: 220000 },
-        { date: '12/11', value: 280000 },
-        { date: '12/12', value: 250000 },
-        { date: '12/13', value: 310000 },
-        { date: '12/14', value: 340000 },
-      ],
-      engagement: [
-        { date: '12/01', shares: 1200, comments: 850 },
-        { date: '12/02', shares: 1800, comments: 1100 },
-        { date: '12/03', shares: 2100, comments: 1450 },
-        { date: '12/04', shares: 1650, comments: 1200 },
-        { date: '12/05', shares: 2450, comments: 1680 },
-        { date: '12/06', shares: 1950, comments: 1320 },
-        { date: '12/07', shares: 2300, comments: 1550 },
-        { date: '12/08', shares: 1850, comments: 1280 },
-        { date: '12/09', shares: 1600, comments: 1100 },
-        { date: '12/10', shares: 2200, comments: 1480 },
-        { date: '12/11', shares: 2800, comments: 1920 },
-        { date: '12/12', shares: 2500, comments: 1720 },
-        { date: '12/13', shares: 3100, comments: 2150 },
-        { date: '12/14', shares: 3400, comments: 2380 },
-      ],
-    },
-  };
+  // Notion 데이터에서 성과 집계
+  const performanceData: PerformanceData = useMemo(() => {
+    if (!contents || contents.length === 0) {
+      return {
+        totalLikes: 0,
+        totalComments: 0,
+        totalShares: 0,
+        totalViews: 0,
+        contentCount: 0,
+        topInfluencers: [],
+        dailyData: [],
+      };
+    }
+
+    // 총계 계산
+    const totalLikes = contents.reduce((sum, c) => sum + (c.likes || 0), 0);
+    const totalComments = contents.reduce((sum, c) => sum + (c.comments || 0), 0);
+    const totalShares = contents.reduce((sum, c) => sum + (c.shares || 0), 0);
+    const totalViews = contents.reduce((sum, c) => sum + (c.views || 0), 0);
+
+    // 인플루언서별 성과 집계
+    const influencerMap = new Map<string, { likes: number; comments: number }>();
+    contents.forEach((c) => {
+      const name = c.influencerName || '알 수 없음';
+      const existing = influencerMap.get(name) || { likes: 0, comments: 0 };
+      influencerMap.set(name, {
+        likes: existing.likes + (c.likes || 0),
+        comments: existing.comments + (c.comments || 0),
+      });
+    });
+
+    // TOP 인플루언서 (좋아요 기준 정렬)
+    const topInfluencers = Array.from(influencerMap.entries())
+      .map(([name, stats]) => ({ name, ...stats }))
+      .sort((a, b) => b.likes - a.likes)
+      .slice(0, 5);
+
+    // 일별 데이터 집계
+    const dailyMap = new Map<string, { likes: number; comments: number; shares: number; views: number }>();
+    contents.forEach((c) => {
+      if (c.postedAt) {
+        const date = new Date(c.postedAt).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' });
+        const existing = dailyMap.get(date) || { likes: 0, comments: 0, shares: 0, views: 0 };
+        dailyMap.set(date, {
+          likes: existing.likes + (c.likes || 0),
+          comments: existing.comments + (c.comments || 0),
+          shares: existing.shares + (c.shares || 0),
+          views: existing.views + (c.views || 0),
+        });
+      }
+    });
+
+    const dailyData = Array.from(dailyMap.entries())
+      .map(([date, stats]) => ({ date, ...stats }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      totalLikes,
+      totalComments,
+      totalShares,
+      totalViews,
+      contentCount: contents.length,
+      topInfluencers,
+      dailyData,
+    };
+  }, [contents]);
+
+  // 실제 데이터 기반 차트 데이터 생성
+  const chartDataFromNotion = useMemo(() => {
+    const dailyData = performanceData.dailyData;
+
+    // 일별 데이터를 차트 형식으로 변환
+    const likes = dailyData.map((d) => ({ date: d.date, value: d.likes }));
+    const views = dailyData.map((d) => ({ date: d.date, value: d.views }));
+    const engagement = dailyData.map((d) => ({ date: d.date, shares: d.shares, comments: d.comments }));
+
+    return {
+      daily: { likes, views, engagement },
+      weekly: { likes, views, engagement }, // 현재는 일별 데이터 사용 (추후 주별 집계 가능)
+      monthly: { likes, views, engagement },
+      custom: { likes, views, engagement },
+    };
+  }, [performanceData.dailyData]);
 
   // 현재 선택된 기간의 데이터
-  const currentData = chartData[periodFilter];
+  const currentData = chartDataFromNotion[periodFilter];
 
-  // 더미 성과 데이터
-  const performanceData = {
-    feedImpressions: { value: 3450000, change: 15.2 },
-    totalLikes: { value: 89500, change: 12.8 },
-    totalVideoViews: { value: 1250000, change: 18.5 },
-    totalShares: { value: 12300, change: 8.3 },
-    totalComments: { value: 8470, change: 10.7 },
-  };
+  // 로딩 상태
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin mr-2 text-primary-600" />
+        <span className="text-slate-500">성과 데이터 로딩 중...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -758,98 +690,77 @@ function CampaignPerformance({ campaign: _campaign }: { campaign: CampaignListIt
         )}
       </div>
 
-      {/* 주요 지표 카드 */}
+      {/* 주요 지표 카드 - 실제 Notion 데이터 사용 */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <CampaignKPICard
-          title="노출 피드 수"
-          value={formatNumber(performanceData.feedImpressions.value)}
-          change={performanceData.feedImpressions.change}
+          title="총 콘텐츠"
+          value={formatNumber(performanceData.contentCount)}
+          change={0}
           isPositive={true}
           metricKey="feedImpressions"
         />
         <CampaignKPICard
           title="총 좋아요"
-          value={formatNumber(performanceData.totalLikes.value)}
-          change={performanceData.totalLikes.change}
+          value={formatNumber(performanceData.totalLikes)}
+          change={0}
           isPositive={true}
           metricKey="totalLikes"
         />
         <CampaignKPICard
           title="총 비디오 재생 수"
-          value={formatNumber(performanceData.totalVideoViews.value)}
-          change={performanceData.totalVideoViews.change}
+          value={formatNumber(performanceData.totalViews)}
+          change={0}
           isPositive={true}
           metricKey="videoViews"
         />
         <CampaignKPICard
           title="총 공유 수"
-          value={formatNumber(performanceData.totalShares.value)}
-          change={performanceData.totalShares.change}
+          value={formatNumber(performanceData.totalShares)}
+          change={0}
           isPositive={true}
           metricKey="totalShares"
         />
         <CampaignKPICard
           title="총 댓글 수"
-          value={formatNumber(performanceData.totalComments.value)}
-          change={performanceData.totalComments.change}
+          value={formatNumber(performanceData.totalComments)}
+          change={0}
           isPositive={true}
           metricKey="totalComments"
         />
       </div>
 
-      {/* 인플루언서별 성과 요약 */}
+      {/* 인플루언서별 성과 요약 - 실제 Notion 데이터 사용 */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <h4 className="text-sm font-semibold text-slate-700 mb-3">TOP 인플루언서 성과</h4>
         <div className="space-y-2">
-          {[
-            { name: '김피트니스', likes: 32000, comments: 1240 },
-            { name: '헬스요정', likes: 28000, comments: 980 },
-            { name: '운동하는직장인', likes: 24500, comments: 870 },
-          ].map((inf, idx) => (
-            <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                  {idx + 1}
+          {performanceData.topInfluencers.length > 0 ? (
+            performanceData.topInfluencers.map((inf, idx) => (
+              <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                    {idx + 1}
+                  </div>
+                  <span className="text-sm font-medium text-slate-700">{inf.name}</span>
                 </div>
-                <span className="text-sm font-medium text-slate-700">{inf.name}</span>
-              </div>
-              <div className="flex items-center gap-4 text-sm">
-                <div className="text-slate-500">
-                  좋아요 <span className="font-medium text-pink-600">{formatNumber(inf.likes)}</span>
-                </div>
-                <div className="text-slate-500">
-                  댓글 <span className="font-medium text-amber-600">{formatNumber(inf.comments)}</span>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="text-slate-500">
+                    좋아요 <span className="font-medium text-pink-600">{formatNumber(inf.likes)}</span>
+                  </div>
+                  <div className="text-slate-500">
+                    댓글 <span className="font-medium text-amber-600">{formatNumber(inf.comments)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <div className="text-center text-slate-400 py-4">인플루언서 성과 데이터가 없습니다</div>
+          )}
         </div>
       </div>
 
       {/* 지표별 추이 차트 */}
+      {currentData.likes.length > 0 ? (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 노출 피드 수 차트 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <h4 className="text-sm font-semibold text-slate-700 mb-4">노출 피드 수 추이</h4>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={currentData.impressions}>
-                <defs>
-                  <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v) => formatNumber(v)} />
-                <Tooltip formatter={(value: number) => [formatNumber(value), '노출']} />
-                <Area type="monotone" dataKey="value" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorImpressions)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
         {/* 좋아요 차트 */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
           <h4 className="text-sm font-semibold text-slate-700 mb-4">총 좋아요 추이</h4>
@@ -931,6 +842,13 @@ function CampaignPerformance({ campaign: _campaign }: { campaign: CampaignListIt
           </div>
         </div>
       </div>
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <div className="text-center text-slate-400 py-8">
+            일별 추이 데이터가 없습니다. 콘텐츠에 게시일 정보가 필요합니다.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1124,6 +1042,7 @@ function convertNotionMention(mention: NotionMention): ContentItem {
     downloadUrl: mention.postUrl,
     likes: mention.likes,
     comments: mention.comments,
+    shares: mention.shares,
     views: mention.views,
     engagementRate: mention.engagementRate,
     postedAt: mention.postedAt,
@@ -1204,7 +1123,9 @@ function CampaignDetailView({
       {/* Sub Tab Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          {activeSubTab === 'performance' && <CampaignPerformance campaign={campaign} />}
+          {activeSubTab === 'performance' && (
+            <CampaignPerformance campaign={campaign} contents={notionContent} loading={detailLoading} />
+          )}
           {activeSubTab === 'seeding' && (
             detailLoading ? (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex items-center justify-center h-32">

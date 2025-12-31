@@ -125,6 +125,7 @@ export interface ContentItem {
   downloadUrl: string;
   likes: number;
   comments: number;
+  shares?: number;
   views?: number;
   engagementRate: number;
   postedAt: string;
