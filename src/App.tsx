@@ -11,6 +11,8 @@ import {
   ExternalLink,
   X,
   Instagram,
+  LogOut,
+  Loader2,
 } from 'lucide-react';
 import type { PeriodType, SeedingItem } from './types';
 import { PeriodFilter } from './components/common/PeriodFilter';
@@ -18,7 +20,8 @@ import { ProfileTab } from './components/tabs/ProfileTab';
 import { AdsTab } from './components/tabs/AdsTab';
 import { CampaignTab } from './components/tabs/CampaignTab';
 import { InfluencersTab } from './components/tabs/InfluencersTab';
-import { CAMPAIGN_INFO } from './data/dummyData';
+import { LoginPage } from './components/LoginPage';
+import { useAuth } from './contexts/AuthContext';
 import {
   useProfileInsight,
   useDailyProfileData,
@@ -38,6 +41,29 @@ type TabType = 'profile' | 'ads' | 'campaign' | 'influencers';
 // 메인 App 컴포넌트
 // ============================================
 function App() {
+  const { user, loading: authLoading, logout, isAuthenticated } = useAuth();
+
+  // 로딩 중이면 로딩 표시
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+      </div>
+    );
+  }
+
+  // 로그인 안되어 있으면 로그인 페이지 표시
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  return <Dashboard user={user!} logout={logout} />;
+}
+
+// ============================================
+// 대시보드 컴포넌트
+// ============================================
+function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAuth>['user']>; logout: () => void }) {
   // 상태
   const [activeTab, setActiveTab] = useState<TabType>('profile');
   const [period, setPeriod] = useState<PeriodType>('daily');
@@ -82,7 +108,7 @@ function App() {
   }, [refetchProfile, refetchDailyProfile, refetchAd, refetchDailyAd, refetchInfluencers, refetchSeeding, refetchAffiliate, refetchContent, refetchAI]);
 
   // 공유 링크 생성
-  const shareLink = `${window.location.origin}/dashboard/${CAMPAIGN_INFO.id}`;
+  const shareLink = `${window.location.origin}/dashboard/${user.brand.id}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareLink);
@@ -121,8 +147,8 @@ function App() {
               </div>
               <div className="h-8 w-px bg-primary-700" />
               <div>
-                <div className="text-primary-300 text-sm">{CAMPAIGN_INFO.client}</div>
-                <div className="font-semibold">{CAMPAIGN_INFO.name}</div>
+                <div className="text-primary-300 text-sm">{user.brand.client}</div>
+                <div className="font-semibold">{user.brand.name}</div>
               </div>
             </div>
 
@@ -183,6 +209,16 @@ function App() {
               >
                 <Share2 size={16} />
                 <span className="text-sm font-medium">공유</span>
+              </button>
+
+              {/* Logout Button */}
+              <button
+                onClick={logout}
+                className="flex items-center gap-2 px-3 py-2 text-primary-300 hover:text-white hover:bg-primary-800 rounded-lg transition-colors"
+                title="로그아웃"
+              >
+                <LogOut size={16} />
+                <span className="text-sm font-medium hidden md:inline">{user.name}</span>
               </button>
             </div>
           </div>
