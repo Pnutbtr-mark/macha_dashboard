@@ -148,12 +148,11 @@ export function InfluencersTab() {
         <div className="overflow-x-auto">
           <table className="w-full table-fixed">
             <colgroup>
-              <col style={{ width: '25%' }} />
-              <col style={{ width: '25%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '12%' }} />
+              <col style={{ width: '28%' }} />
+              <col style={{ width: '28%' }} />
               <col style={{ width: '14%' }} />
-              <col style={{ width: '12%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '16%' }} />
             </colgroup>
             <thead className="bg-gradient-to-r from-primary-600 to-primary-700 border-b-2 border-primary-800">
               <tr>
@@ -171,9 +170,6 @@ export function InfluencersTab() {
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wide">
                   평균 반응
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wide">
-                  상태
                 </th>
               </tr>
             </thead>
@@ -255,17 +251,6 @@ export function InfluencersTab() {
                         <span>💬 {formatNumber(influencer.avgComments)}</span>
                       </div>
                     </div>
-                  </td>
-
-                  {/* 상태 */}
-                  <td className="px-4 py-3 text-center">
-                    {influencer.status ? (
-                      <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full whitespace-nowrap">
-                        {influencer.status}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 text-xs">-</span>
-                    )}
                   </td>
                 </tr>
               ))}

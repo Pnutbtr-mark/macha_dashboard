@@ -36,14 +36,37 @@ async function sync() {
     .filter(handle => handle && handle.trim() !== '');
 
   console.log(`📱 Instagram 핸들: ${handles.length}개`);
-  console.log(`🔄 Apify로 Instagram 데이터 수집 중... (2-3분 소요)`);
+  console.log(`🔄 Apify로 Instagram 데이터 수집 중... (배치 처리로 차단 방지)`);
 
-  const run = await apify.actor('apify/instagram-profile-scraper').call({
-    usernames: handles,
-  });
+  // 배치 단위로 나눠서 처리 (한 번에 25개씩)
+  const BATCH_SIZE = 25;
+  const allItems = [];
 
-  const { items } = await apify.dataset(run.defaultDatasetId).listItems();
-  console.log(`✅ ${items.length}개 프로필 데이터 수집 완료`);
+  for (let i = 0; i < handles.length; i += BATCH_SIZE) {
+    const batch = handles.slice(i, i + BATCH_SIZE);
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+    const totalBatches = Math.ceil(handles.length / BATCH_SIZE);
+
+    console.log(`📦 배치 ${batchNum}/${totalBatches}: ${batch.length}개 처리 중...`);
+
+    const run = await apify.actor('apify/instagram-profile-scraper').call({
+      usernames: batch,
+    });
+
+    const { items } = await apify.dataset(run.defaultDatasetId).listItems();
+    allItems.push(...items);
+
+    console.log(`✅ 배치 ${batchNum} 완료: ${items.length}개 수집`);
+
+    // 다음 배치 전 잠시 대기 (Instagram 차단 방지)
+    if (i + BATCH_SIZE < handles.length) {
+      console.log(`⏳ 3초 대기 중...`);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
+
+  const items = allItems;
+  console.log(`✅ 총 ${items.length}개 프로필 데이터 수집 완료`);
 
   let successCount = 0;
   let failCount = 0;
