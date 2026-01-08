@@ -16,6 +16,7 @@ import { PeriodFilter } from './components/common/PeriodFilter';
 import { ProfileTab } from './components/tabs/ProfileTab';
 import { AdsTab } from './components/tabs/AdsTab';
 import { CampaignTab } from './components/tabs/CampaignTab';
+import { InfluencersTab } from './components/tabs/InfluencersTab';
 import { CAMPAIGN_INFO } from './data/dummyData';
 import {
   useProfileInsight,
@@ -29,8 +30,8 @@ import {
   useAIAnalysis,
 } from './hooks/useApi';
 
-// 탭 타입 (인플루언서 탭 제거)
-type TabType = 'profile' | 'ads' | 'campaign';
+// 탭 타입
+type TabType = 'profile' | 'ads' | 'campaign' | 'influencers';
 
 // ============================================
 // 메인 App 컴포넌트
@@ -88,11 +89,12 @@ function App() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  // 탭 설정 (인플루언서 탭 제거)
+  // 탭 설정
   const tabs: { key: TabType; label: string; icon: typeof User }[] = [
     { key: 'profile', label: '프로필 인사이트', icon: User },
     { key: 'ads', label: '광고 성과', icon: TrendingUp },
     { key: 'campaign', label: '캠페인 관리', icon: Megaphone },
+    { key: 'influencers', label: '인플루언서 리스트', icon: User },
   ];
 
   // 로딩 상태 계산
@@ -222,6 +224,8 @@ function App() {
             loading={isLoading.campaign}
           />
         )}
+
+        {activeTab === 'influencers' && <InfluencersTab />}
       </main>
 
       {/* Footer */}

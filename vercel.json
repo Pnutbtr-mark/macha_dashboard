@@ -43,6 +43,10 @@
       "dest": "/api/analyze.js"
     },
     {
+      "src": "/api/influencers-list",
+      "dest": "/api/influencers-list.js"
+    },
+    {
       "src": "/assets/(.*)",
       "dest": "/dist/assets/$1"
     },
