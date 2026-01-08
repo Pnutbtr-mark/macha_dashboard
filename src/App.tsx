@@ -10,6 +10,7 @@ import {
   Check,
   ExternalLink,
   X,
+  Instagram,
 } from 'lucide-react';
 import type { PeriodType, SeedingItem } from './types';
 import { PeriodFilter } from './components/common/PeriodFilter';
@@ -135,6 +136,36 @@ function App() {
                 </span>
                 <span className="text-xs font-medium text-emerald-300">실시간 연동</span>
               </div>
+
+              {/* Instagram Connect Button */}
+              <button
+                onClick={() => {
+                  const url =
+                    'https://www.facebook.com/v24.0/dialog/oauth' +
+                    '?client_id=742315354931014' +
+                    '&redirect_uri=https://matcha.pnutbutter.kr/api-meta/auth/callback' +
+                    '&scope=' +
+                    [
+                      'public_profile',
+                      'pages_show_list',
+                      'pages_read_engagement',
+                      'instagram_basic',
+                      'instagram_manage_insights',
+                      'business_management',
+                      'ads_read',
+                      'ads_management',
+                    ].join(',') +
+                    '&response_type=code';
+                  window.location.href = url;
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full font-medium text-white text-xs transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                style={{
+                  background: 'linear-gradient(135deg, #f58529, #dd2a7b, #8134af)',
+                }}
+              >
+                <Instagram size={14} />
+                Instagram 연결
+              </button>
 
               {/* Refresh Button */}
               <button

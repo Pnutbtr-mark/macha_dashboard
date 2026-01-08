@@ -100,44 +100,14 @@ export function InfluencersTab() {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary-100 rounded-xl">
-              <Users size={24} className="text-primary-600" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-primary-950">인플루언서 리스트</h2>
-              <p className="text-sm text-slate-500">총 {influencers.length}명</p>
-            </div>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-primary-100 rounded-xl">
+            <Users size={24} className="text-primary-600" />
           </div>
-          <button
-            onClick={() => {
-              const url =
-                'https://www.facebook.com/v24.0/dialog/oauth' +
-                '?client_id=742315354931014' +
-                '&redirect_uri=https://matcha.pnutbutter.kr/api-meta/auth/callback' +
-                '&scope=' +
-                [
-                  'public_profile',
-                  'pages_show_list',
-                  'pages_read_engagement',
-                  'instagram_basic',
-                  'instagram_manage_insights',
-                  'business_management',
-                  'ads_read',
-                  'ads_management',
-                ].join(',') +
-                '&response_type=code';
-              window.location.href = url;
-            }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-white text-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
-            style={{
-              background: 'linear-gradient(135deg, #f58529, #dd2a7b, #8134af)',
-            }}
-          >
-            <Instagram size={18} />
-            Instagram 계정 연결
-          </button>
+          <div>
+            <h2 className="text-xl font-bold text-primary-950">인플루언서 리스트</h2>
+            <p className="text-sm text-slate-500">총 {influencers.length}명</p>
+          </div>
         </div>
 
         {/* Search and Filter */}
