@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, Search, Filter, Users, Mail, Phone, Instagram } from 'lucide-react';
+import { Loader2, Search, Filter, Users, Instagram } from 'lucide-react';
 
 interface Influencer {
   id: string;
@@ -149,12 +149,11 @@ export function InfluencersTab() {
           <table className="w-full table-fixed">
             <colgroup>
               <col style={{ width: '25%' }} />
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '20%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '25%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '12%' }} />
             </colgroup>
             <thead className="bg-gradient-to-r from-primary-600 to-primary-700 border-b-2 border-primary-800">
               <tr>
@@ -172,9 +171,6 @@ export function InfluencersTab() {
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wide">
                   평균 반응
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wide">
-                  연락처
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wide">
                   상태
@@ -223,21 +219,14 @@ export function InfluencersTab() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {influencer.category.length > 0 ? (
-                        <>
-                          {influencer.category.slice(0, 1).map((cat, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded whitespace-nowrap"
-                            >
-                              {cat}
-                            </span>
-                          ))}
-                          {influencer.category.length > 1 && (
-                            <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-xs font-medium rounded">
-                              +{influencer.category.length - 1}
-                            </span>
-                          )}
-                        </>
+                        influencer.category.map((cat, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded whitespace-nowrap"
+                          >
+                            {cat}
+                          </span>
+                        ))
                       ) : (
                         <span className="text-slate-400 text-xs">-</span>
                       )}
@@ -265,27 +254,6 @@ export function InfluencersTab() {
                       <div className="flex items-center justify-center gap-1 text-xs text-slate-500">
                         <span>💬 {formatNumber(influencer.avgComments)}</span>
                       </div>
-                    </div>
-                  </td>
-
-                  {/* 연락처 */}
-                  <td className="px-4 py-3">
-                    <div className="space-y-0.5 text-xs">
-                      {influencer.email && (
-                        <div className="flex items-center gap-1 text-slate-600 truncate">
-                          <Mail size={12} className="flex-shrink-0 text-slate-400" />
-                          <span className="truncate">{influencer.email}</span>
-                        </div>
-                      )}
-                      {influencer.phone && (
-                        <div className="flex items-center gap-1 text-slate-600">
-                          <Phone size={12} className="flex-shrink-0 text-slate-400" />
-                          <span>{influencer.phone}</span>
-                        </div>
-                      )}
-                      {!influencer.email && !influencer.phone && (
-                        <span className="text-slate-400">-</span>
-                      )}
                     </div>
                   </td>
 
