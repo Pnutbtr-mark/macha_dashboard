@@ -40,12 +40,13 @@ export default async function handler(req, res) {
 
     console.log(`[Sync] Found ${allInfluencers.length} influencers`);
 
-    // Instagram 핸들 추출
+    // Instagram 핸들 추출 (Formula 필드 'username' 사용)
     const influencersWithHandles = allInfluencers
       .map((page) => {
         const props = page.properties;
-        const instagramProfile = props['인스타그램 프로필']?.rich_text?.[0]?.plain_text || '';
-        const handle = instagramProfile.replace('@', '').trim();
+        // Formula 필드는 formula.string으로 접근
+        const username = props['username']?.formula?.string || '';
+        const handle = username.replace('@', '').trim();
 
         return {
           pageId: page.id,
@@ -104,28 +105,32 @@ export default async function handler(req, res) {
         ? ((avgLikes + avgComments) / followers * 100)
         : 0;
 
-      // Notion 업데이트
+      // Notion 업데이트 (프로필 이미지 URL이 없으면 필드 자체를 제외)
+      const properties = {
+        '팔로워 수': {
+          rich_text: [{
+            text: { content: followers.toLocaleString() },
+          }],
+        },
+        '평균 좋아요': {
+          number: avgLikes,
+        },
+        '평균 댓글': {
+          number: avgComments,
+        },
+        '참여율': {
+          number: parseFloat(engagementRate.toFixed(2)),
+        },
+      };
+
+      // 프로필 이미지 URL이 있을 때만 추가
+      if (item.profilePicUrl) {
+        properties['프로필 이미지 URL'] = { url: item.profilePicUrl };
+      }
+
       const updatePromise = notion.pages.update({
         page_id: influencer.pageId,
-        properties: {
-          '팔로워 수': {
-            rich_text: [{
-              text: { content: followers.toLocaleString() },
-            }],
-          },
-          '평균 좋아요': {
-            number: avgLikes,
-          },
-          '평균 댓글': {
-            number: avgComments,
-          },
-          '참여율': {
-            number: parseFloat(engagementRate.toFixed(2)),
-          },
-          '프로필 이미지 URL': {
-            url: item.profilePicUrl || null,
-          },
-        },
+        properties: properties,
       }).then(() => {
         console.log(`[Sync] Updated ${influencer.name} (@${influencer.handle})`);
         updatedCount++;
