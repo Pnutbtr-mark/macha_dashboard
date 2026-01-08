@@ -5,11 +5,6 @@ import {
   TrendingUp,
   Megaphone,
   RefreshCw,
-  Share2,
-  Copy,
-  Check,
-  ExternalLink,
-  X,
   Instagram,
   LogOut,
   Loader2,
@@ -71,8 +66,6 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
     start: '2024-12-01',
     end: '2024-12-14',
   });
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [localSeedingList, setLocalSeedingList] = useState<SeedingItem[]>([]);
 
   // API 데이터 (Custom Hooks)
@@ -106,15 +99,6 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
     refetchContent();
     refetchAI();
   }, [refetchProfile, refetchDailyProfile, refetchAd, refetchDailyAd, refetchInfluencers, refetchSeeding, refetchAffiliate, refetchContent, refetchAI]);
-
-  // 공유 링크 생성
-  const shareLink = `${window.location.origin}/dashboard/${user.brand.id}`;
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(shareLink);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
-  };
 
   // 탭 설정
   const tabs: { key: TabType; label: string; icon: typeof User }[] = [
@@ -202,15 +186,6 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
                 <RefreshCw size={18} />
               </button>
 
-              {/* Share Button */}
-              <button
-                onClick={() => setShowShareModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-800 hover:bg-primary-700 rounded-lg transition-colors"
-              >
-                <Share2 size={16} />
-                <span className="text-sm font-medium">공유</span>
-              </button>
-
               {/* Logout Button */}
               <button
                 onClick={logout}
@@ -218,7 +193,7 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
                 title="로그아웃"
               >
                 <LogOut size={16} />
-                <span className="text-sm font-medium hidden md:inline">{user.name}</span>
+                <span className="text-sm font-medium">로그아웃</span>
               </button>
             </div>
           </div>
@@ -307,66 +282,6 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
         </div>
       </footer>
 
-      {/* Share Modal */}
-      {showShareModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-primary-950">대시보드 공유</h3>
-              <button
-                onClick={() => setShowShareModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <p className="text-sm text-slate-600 mb-4">
-              아래 링크를 통해 이 대시보드를 팀원 또는 고객사에 공유할 수 있습니다.
-            </p>
-
-            <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg mb-4">
-              <input
-                type="text"
-                value={shareLink}
-                readOnly
-                className="flex-1 bg-transparent text-sm text-slate-700 outline-none"
-              />
-              <button
-                onClick={handleCopyLink}
-                className={`flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  copiedLink
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-primary-600 text-white hover:bg-primary-700'
-                }`}
-              >
-                {copiedLink ? <Check size={14} /> : <Copy size={14} />}
-                {copiedLink ? '복사됨' : '복사'}
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <a
-                href={shareLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                <ExternalLink size={14} />
-                새 탭에서 열기
-              </a>
-            </div>
-
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="text-xs font-medium text-amber-700 mb-1">참고</div>
-              <p className="text-xs text-amber-600">
-                공유 링크에 접근하려면 별도의 인증이 필요합니다.
-                실제 운영 시에는 접근 권한을 설정해 주세요.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
