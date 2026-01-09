@@ -13,54 +13,67 @@
       }
     }
   ],
-  "routes": [
+
+  "rewrites": [
     {
-      "src": "/api/campaigns",
-      "dest": "/api/campaigns.js"
+      "source": "/blog/:path*",
+      "destination": "https://proxy.inblog.dev/pnutbtr/:path*"
     },
     {
-      "src": "/api/influencers",
-      "dest": "/api/influencers.js"
+      "source": "/blog",
+      "destination": "https://proxy.inblog.dev/pnutbtr"
     },
     {
-      "src": "/api/mentions",
-      "dest": "/api/mentions.js"
+      "source": "/robots.txt",
+      "destination": "https://proxy.inblog.dev/pnutbtr/robots.txt"
     },
     {
-      "src": "/api/dashboard",
-      "dest": "/api/dashboard.js"
+      "source": "/api/campaigns",
+      "destination": "/api/campaigns.js"
     },
     {
-      "src": "/api/seeding",
-      "dest": "/api/seeding.js"
+      "source": "/api/influencers",
+      "destination": "/api/influencers.js"
     },
     {
-      "src": "/api/debug-schema",
-      "dest": "/api/debug-schema.js"
+      "source": "/api/mentions",
+      "destination": "/api/mentions.js"
     },
     {
-      "src": "/api/analyze",
-      "dest": "/api/analyze.js"
+      "source": "/api/dashboard",
+      "destination": "/api/dashboard.js"
     },
     {
-      "src": "/api/influencers-list",
-      "dest": "/api/influencers-list.js"
+      "source": "/api/seeding",
+      "destination": "/api/seeding.js"
     },
     {
-      "src": "/api/sync-instagram-data",
-      "dest": "/api/sync-instagram-data.js"
+      "source": "/api/debug-schema",
+      "destination": "/api/debug-schema.js"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "/dist/assets/$1"
+      "source": "/api/analyze",
+      "destination": "/api/analyze.js"
     },
     {
-      "src": "/(.*\\.(js|css|ico|png|jpg|jpeg|svg|woff|woff2))",
-      "dest": "/dist/$1"
+      "source": "/api/influencers-list",
+      "destination": "/api/influencers-list.js"
     },
     {
-      "src": "/(.*)",
-      "dest": "/dist/index.html"
+      "source": "/api/sync-instagram-data",
+      "destination": "/api/sync-instagram-data.js"
+    },
+    {
+      "source": "/assets/:path*",
+      "destination": "/dist/assets/:path*"
+    },
+    {
+      "source": "/:path*\\.(js|css|ico|png|jpg|jpeg|svg|woff|woff2)",
+      "destination": "/dist/:path*.$1"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/dist/index.html"
     }
   ]
 }
