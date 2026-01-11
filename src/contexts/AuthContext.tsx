@@ -13,7 +13,9 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  brand: Brand;
+  igUserId?: string;
+  metaAccessToken?: string;
+  brand?: Brand;
 }
 
 interface AuthContextType {
@@ -25,42 +27,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// 더미 사용자 데이터 (나중에 AWS API로 교체)
-const DUMMY_USERS: Record<string, { password: string; user: User }> = {
-  'sweatlife@test.com': {
-    password: '1234',
-    user: {
-      id: 'user_001',
-      email: 'sweatlife@test.com',
-      name: '스웻이프 관리자',
-      brand: {
-        id: 'brand_001',
-        name: '스웻이프',
-        client: '스웻이프',
-        notionDbId: '94d490dd8b654351a6ebeb32a965134f',
-        metaAdAccountId: 'act_123456789',
-        instagramAccountId: '17841400000000000',
-      },
-    },
-  },
-  'brandB@test.com': {
-    password: '1234',
-    user: {
-      id: 'user_002',
-      email: 'brandB@test.com',
-      name: '브랜드B 관리자',
-      brand: {
-        id: 'brand_002',
-        name: '브랜드B',
-        client: '브랜드B 주식회사',
-        notionDbId: 'another_notion_db_id',
-        metaAdAccountId: 'act_987654321',
-        instagramAccountId: '17841400000000001',
-      },
-    },
-  },
-};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -80,22 +46,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // TODO: AWS API로 교체
-    // const response = await fetch('https://your-aws-api.com/auth/login', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email, password }),
-    // });
-    // const data = await response.json();
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: email, password }),
+      });
 
-    // 더미 로그인 로직
-    const userData = DUMMY_USERS[email];
-    if (userData && userData.password === password) {
-      setUser(userData.user);
-      localStorage.setItem('macha_user', JSON.stringify(userData.user));
-      return true;
+      const data = await response.json();
+
+      if (data.responseCode === 0 && data.result?.length > 0) {
+        const apiUser = data.result[0];
+        const user: User = {
+          id: apiUser.id,
+          email: apiUser.userId,
+          name: apiUser.userId,
+          igUserId: apiUser.igUserId,
+          metaAccessToken: apiUser.metaAccessToken,
+        };
+        setUser(user);
+        localStorage.setItem('macha_user', JSON.stringify(user));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Login failed:', error);
+      return false;
     }
-    return false;
   };
 
   const logout = () => {

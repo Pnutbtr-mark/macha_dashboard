@@ -131,29 +131,28 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
               </div>
               <div className="h-8 w-px bg-primary-700" />
               <div>
-                <div className="text-primary-300 text-sm">{user.brand.client}</div>
-                <div className="font-semibold">{user.brand.name}</div>
+                <div className="text-primary-300 text-sm">{user.brand?.client || user.name}</div>
+                <div className="font-semibold">{user.brand?.name || user.email}</div>
               </div>
             </div>
 
             {/* Status & Actions */}
             <div className="flex items-center gap-4">
-              {/* Live Status */}
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 rounded-full">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-xs font-medium text-emerald-300">실시간 연동</span>
-              </div>
-
               {/* Instagram Connect Button */}
               <button
                 onClick={() => {
+                  const stateObj = {
+                    redirectUrl: window.location.origin,
+                    dashMemberId: user.id,
+                  };
+                  const encodedState = encodeURIComponent(JSON.stringify(stateObj));
+
                   const url =
                     'https://www.facebook.com/v24.0/dialog/oauth' +
                     '?client_id=742315354931014' +
                     '&redirect_uri=https://matcha.pnutbutter.kr/api-meta/auth/callback' +
+                    '&state=' +
+                    encodedState +
                     '&scope=' +
                     [
                       'public_profile',

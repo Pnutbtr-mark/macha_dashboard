@@ -378,6 +378,31 @@ app.get('/api/seeding', async (req, res) => {
 });
 
 // ============================================
+// 인증 API (프록시)
+// ============================================
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { userId, password } = req.body;
+
+    const response = await fetch(`${process.env.EXTERNAL_API_URL}/api/v1/dash-members/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, password }),
+    });
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('로그인 에러:', error);
+    res.status(500).json({
+      responseCode: -1,
+      message: '로그인 처리 중 오류가 발생했습니다.',
+    });
+  }
+});
+
+// ============================================
 // 서버 시작
 // ============================================
 
