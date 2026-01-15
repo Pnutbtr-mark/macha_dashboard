@@ -17,9 +17,13 @@ export interface ProfileInsight {
   reach: number;
   reachGrowth: number;
   impressions: number;
+  impressionsGrowth: number;      // 노출(views) 성장률
   profileViews: number;
+  profileViewsGrowth: number;     // 프로필 방문 성장률
   websiteClicks: number;
+  websiteClicksGrowth: number;    // 웹사이트 클릭 성장률
   engagementRate: number;
+  engagementRateGrowth: number;   // 참여율 성장률
 }
 
 export interface DailyProfileData {

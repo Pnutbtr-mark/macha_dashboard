@@ -13,6 +13,12 @@ import type {
   ProfileContentItem,
 } from '../types';
 
+// 성장률 계산 헬퍼 함수
+function calculateGrowth(today: number, yesterday: number): number {
+  if (yesterday === 0) return 0;
+  return parseFloat((((today - yesterday) / yesterday) * 100).toFixed(1));
+}
+
 // 1. 프로필 인사이트 변환
 export function mapToProfileInsight(
   insights: DashMemberInsight[],
@@ -34,32 +40,58 @@ export function mapToProfileInsight(
        previousFollower.followersCount) * 100
     : 0;
 
-  // 최근 28일 인사이트 (days_28)
-  const recentInsights = insights.filter(i => i.period === 'days_28');
+  // 일별 인사이트에서 날짜 추출 (오늘/어제)
+  const dayInsights = insights.filter(i => i.period === 'day');
+  const uniqueDates = [...new Set(dayInsights.map(i => i.time.split('T')[0]))].sort().reverse();
+  const todayDate = uniqueDates[0];
+  const yesterdayDate = uniqueDates[1];
 
-  const reach = findMetricValue(recentInsights, 'reach') || 0;
-  const impressions = findMetricValue(recentInsights, 'impressions') || 0;
-  const profileViews = findMetricValue(recentInsights, 'profile_views') || 0;
-  const websiteClicks = findMetricValue(recentInsights, 'website_clicks') || 0;
+  // 오늘/어제 인사이트 필터링
+  const todayInsights = dayInsights.filter(i => i.time.startsWith(todayDate));
+  const yesterdayInsights = yesterdayDate
+    ? dayInsights.filter(i => i.time.startsWith(yesterdayDate))
+    : [];
+
+  // 오늘 데이터
+  const reach = findMetricValue(todayInsights, 'reach') || 0;
+  const impressions = findMetricValue(todayInsights, 'views') || 0;
+  const profileViews = findMetricValue(todayInsights, 'profile_views') || 0;
+  const websiteClicks = findMetricValue(todayInsights, 'website_clicks') || 0;
+  const totalInteractions = findMetricValue(todayInsights, 'total_interactions') || 0;
+
+  // 어제 데이터
+  const yesterdayReach = findMetricValue(yesterdayInsights, 'reach') || 0;
+  const yesterdayImpressions = findMetricValue(yesterdayInsights, 'views') || 0;
+  const yesterdayProfileViews = findMetricValue(yesterdayInsights, 'profile_views') || 0;
+  const yesterdayWebsiteClicks = findMetricValue(yesterdayInsights, 'website_clicks') || 0;
+  const yesterdayTotalInteractions = findMetricValue(yesterdayInsights, 'total_interactions') || 0;
 
   // 참여율 계산
-  const totalInteractions = findMetricValue(recentInsights, 'total_interactions') || 0;
   const engagementRate = reach > 0 ? (totalInteractions / reach) * 100 : 0;
+  const yesterdayEngagementRate = yesterdayReach > 0 ? (yesterdayTotalInteractions / yesterdayReach) * 100 : 0;
 
-  // 성장률 계산 (이전 28일 대비 - 단순화)
-  const reachGrowth = 0; // 이전 기간 데이터 필요시 별도 API 호출
+  // 전일 대비 성장률 계산
+  const reachGrowth = calculateGrowth(reach, yesterdayReach);
+  const impressionsGrowth = calculateGrowth(impressions, yesterdayImpressions);
+  const profileViewsGrowth = calculateGrowth(profileViews, yesterdayProfileViews);
+  const websiteClicksGrowth = calculateGrowth(websiteClicks, yesterdayWebsiteClicks);
+  const engagementRateGrowth = calculateGrowth(engagementRate, yesterdayEngagementRate);
 
   return {
     followers: latestFollower.followersCount,
     followersGrowth: parseFloat(followersGrowth.toFixed(1)),
-    following: 0,  // API에서 제공하지 않음
-    posts: 0,      // 별도 계산 가능
+    following: 0,
+    posts: 0,
     reach,
-    reachGrowth: parseFloat(reachGrowth.toFixed(1)),
+    reachGrowth,
     impressions,
+    impressionsGrowth,
     profileViews,
+    profileViewsGrowth,
     websiteClicks,
+    websiteClicksGrowth,
     engagementRate: parseFloat(engagementRate.toFixed(1)),
+    engagementRateGrowth,
   };
 }
 
@@ -86,7 +118,7 @@ export function mapToDailyProfileData(
     );
 
     const reach = findMetricValue(dayInsights, 'reach') || 0;
-    const impressions = findMetricValue(dayInsights, 'impressions') || 0;
+    const impressions = findMetricValue(dayInsights, 'views') || 0;  // 노출 → views 값 사용
     const interactions = findMetricValue(dayInsights, 'total_interactions') || 0;
     const engagement = reach > 0 ? (interactions / reach) * 100 : 0;
 
@@ -104,7 +136,28 @@ export function mapToDailyProfileData(
 export function mapToContentItems(
   mediaList: DashMediaResponse[]
 ): ProfileContentItem[] {
-  return mediaList.map(item => {
+  // igMediaId 기준으로 중복 제거 (최신 인사이트 데이터만 유지)
+  const mediaMap = new Map<string, DashMediaResponse>();
+
+  for (const item of mediaList) {
+    const mediaId = item.dashMedia.igMediaId;
+    const existing = mediaMap.get(mediaId);
+
+    if (!existing) {
+      mediaMap.set(mediaId, item);
+    } else {
+      // 최신 인사이트 데이터로 업데이트
+      const existingTime = getLatestInsightTime(existing.dashMediaInsights);
+      const newTime = getLatestInsightTime(item.dashMediaInsights);
+
+      if (newTime > existingTime) {
+        mediaMap.set(mediaId, item);
+      }
+    }
+  }
+
+  // 중복 제거된 콘텐츠만 변환
+  return Array.from(mediaMap.values()).map(item => {
     const { dashMedia, dashMediaInsights } = item;
 
     // 인사이트 값 추출
@@ -138,6 +191,15 @@ export function mapToContentItems(
       engagementRate: parseFloat(engagementRate.toFixed(1)),
     };
   });
+}
+
+// 가장 최신 인사이트 시간 찾기
+function getLatestInsightTime(insights: DashMediaInsight[]): string {
+  if (insights.length === 0) return '';
+  return insights
+    .map(i => i.time)
+    .sort()
+    .reverse()[0];
 }
 
 // 4. 팔로워 인구통계 변환

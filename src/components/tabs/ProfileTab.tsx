@@ -30,7 +30,7 @@ const formatNumber = (num: number): string => {
 
 // 프로필 AI 분석 데이터
 const profileAIAnalysis = {
-  summary: '프로필 성장세가 전월 대비 18% 상승하며 꾸준한 팔로워 증가를 보이고 있습니다. 특히 릴스 콘텐츠의 도달률이 피드 대비 2.8배 높게 나타나고 있습니다.',
+  summary: '프로필 성장세가 전일 대비 18% 상승하며 꾸준한 팔로워 증가를 보이고 있습니다. 특히 릴스 콘텐츠의 도달률이 피드 대비 2.8배 높게 나타나고 있습니다.',
   insights: [
     '오후 6-9시 게시물의 참여율이 평균 대비 42% 높습니다.',
     '릴스 콘텐츠가 피드 대비 2.8배 높은 도달률을 기록 중입니다.',
@@ -109,7 +109,7 @@ function ProfileKPICard({
       </div>
       <div className={`flex items-center gap-1 text-xs font-medium ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
         {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-        <span>전월 대비 {change > 0 ? '+' : ''}{change.toFixed(1)}%</span>
+        <span>전일 대비 {change > 0 ? '+' : ''}{change.toFixed(1)}%</span>
       </div>
     </div>
   );
@@ -182,16 +182,16 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
             <ProfileKPICard
               title="참여율"
               value={profileData.engagementRate.toFixed(1) + '%'}
-              change={8.2}
-              isPositive={true}
+              change={profileData.engagementRateGrowth}
+              isPositive={profileData.engagementRateGrowth >= 0}
               metricKey="engagementRate"
               loading={loading}
             />
             <ProfileKPICard
               title="노출"
               value={formatNumber(profileData.impressions)}
-              change={12.3}
-              isPositive={true}
+              change={profileData.impressionsGrowth}
+              isPositive={profileData.impressionsGrowth >= 0}
               metricKey="impressions"
               loading={loading}
             />
@@ -205,9 +205,9 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
             <InfoTooltip metricKey="profileVisits" />
           </div>
           <div className="text-2xl font-bold text-slate-900">{profileActionsData.profileVisits.toLocaleString()}</div>
-          <div className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-            <TrendingUp size={12} />
-            <span>전월 대비 +12.5%</span>
+          <div className={`flex items-center gap-1 text-xs font-medium ${profileData.profileViewsGrowth >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+            {profileData.profileViewsGrowth >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+            <span>전일 대비 {profileData.profileViewsGrowth > 0 ? '+' : ''}{profileData.profileViewsGrowth.toFixed(1)}%</span>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow h-[100px] flex flex-col justify-between">
@@ -216,9 +216,9 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
             <InfoTooltip metricKey="websiteClicks" />
           </div>
           <div className="text-2xl font-bold text-slate-900">{profileActionsData.websiteClicks.toLocaleString()}</div>
-          <div className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-            <TrendingUp size={12} />
-            <span>전월 대비 +8.3%</span>
+          <div className={`flex items-center gap-1 text-xs font-medium ${profileData.websiteClicksGrowth >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+            {profileData.websiteClicksGrowth >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+            <span>전일 대비 {profileData.websiteClicksGrowth > 0 ? '+' : ''}{profileData.websiteClicksGrowth.toFixed(1)}%</span>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow h-[100px] flex flex-col justify-between">
@@ -231,7 +231,7 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
           </div>
           <div className="flex items-center gap-1 text-xs font-medium text-emerald-600">
             <TrendingUp size={12} />
-            <span>전월 대비 +2.1%</span>
+            <span>전일 대비 -</span>
           </div>
         </div>
       </section>

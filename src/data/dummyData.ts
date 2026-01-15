@@ -39,9 +39,13 @@ export const PROFILE_INSIGHT: ProfileInsight = {
   reach: 892000,
   reachGrowth: 23.1,
   impressions: 2450000,
+  impressionsGrowth: 12.3,
   profileViews: 45200,
+  profileViewsGrowth: 15.2,
   websiteClicks: 12800,
+  websiteClicksGrowth: 8.5,
   engagementRate: 4.8,
+  engagementRateGrowth: 5.2,
 };
 
 export const DAILY_PROFILE_DATA: DailyProfileData[] = [
