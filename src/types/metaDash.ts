@@ -97,3 +97,70 @@ export interface DashMediaResponse {
   dashMedia: DashMedia;
   dashMediaInsights: DashMediaInsight[];
 }
+
+// 8. 광고 계정
+export interface DashAdAccount {
+  id: string;
+  metaAccountId: string;
+  name: string;
+  dashMemberId: string;
+  accountStatus: number;
+  currency: string;
+  connected: boolean;
+  lastSyncedAt: string;
+}
+
+// 9. 광고 계정 인사이트 (개별 광고 성과)
+export interface DashAdAccountInsight {
+  id: string;
+  dashMemberId: string;
+  metaAdAccountId: string;
+  adId: string;
+  time: string;           // "2026-01-14"
+  impressions: number;
+  clicks: number;
+  reach: number;
+  spend: number;
+  cpc: number | null;
+  ctr: number;
+  lastSyncedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 10. 광고 상세 정보
+export interface DashAdDetailEntity {
+  id: string;
+  dashMemberId: string;
+  time: string;
+  adId: string;
+  adName: string;
+  status: string;
+  effectiveStatus: string;
+  campaignId: string;
+  adsetId: string;
+  creativeId: string;
+  creativeName: string;
+  thumbnailUrl: string;
+  pageId: string;
+  instagramUserId: string;
+  videoId: string | null;
+  title: string | null;
+  message: string | null;
+  imageUrl: string | null;
+  imageHash: string | null;
+  callToActionType: string | null;
+  callToActionLink: string | null;
+}
+
+// 11. 광고 상세 + 인사이트 묶음
+export interface DashAdDetailWithInsight {
+  dashAdAccountInsight: DashAdAccountInsight;
+  dashAdDetailEntity: DashAdDetailEntity;
+}
+
+// 12. 광고 계정 + 인사이트 응답
+export interface DashAdAccountWithInsights {
+  dashAdAccount: DashAdAccount;
+  dashAdDetailWithInsights: DashAdDetailWithInsight[];
+}

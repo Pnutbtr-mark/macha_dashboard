@@ -74,8 +74,8 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
   // API 데이터 (Custom Hooks)
   const { data: profileData, loading: profileLoading, refetch: refetchProfile, lastUpdated } = useProfileInsight();
   const { data: dailyProfileData, loading: dailyProfileLoading, refetch: refetchDailyProfile } = useDailyProfileData(period);
-  const { data: adData, loading: adLoading, refetch: refetchAd } = useAdPerformance();
-  const { data: dailyAdData, loading: dailyAdLoading, refetch: refetchDailyAd } = useDailyAdData(period);
+  const { data: adData, loading: adLoading, refetch: refetchAd } = useAdPerformance(user.id);
+  const { data: dailyAdData, loading: dailyAdLoading, refetch: refetchDailyAd } = useDailyAdData(period, user.id);
   const { data: influencers, loading: influencersLoading, refetch: refetchInfluencers } = useInfluencers();
   const { data: seedingList, loading: seedingLoading, refetch: refetchSeeding } = useSeedingList();
 
@@ -275,8 +275,10 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
 
         {activeTab === 'ads' && (
           <AdsTab
-            adData={adData}
+            adData={adData?.adPerformance || null}
             dailyData={dailyAdData}
+            campaignData={adData?.campaignData || []}
+            profileData={profileData}
             loading={isLoading.ads}
           />
         )}

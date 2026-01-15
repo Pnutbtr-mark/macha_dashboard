@@ -10,7 +10,7 @@ import {
   AreaChart,
   Area,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Play, Image, Sparkles } from 'lucide-react';
+import { TrendingUp, TrendingDown, Play, Image, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
 import type { ProfileInsight, DailyProfileData, FollowerDemographic, ProfileContentItem } from '../../types';
 
@@ -23,8 +23,6 @@ interface ProfileTabProps {
 }
 
 const formatNumber = (num: number): string => {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
   return num.toLocaleString();
 };
 
@@ -126,8 +124,10 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
     ? contentList
     : contentList.filter(item => item.type === contentFilter);
 
-  // 참여율 높은 순으로 정렬
-  const sortedContent = [...filteredContent].sort((a, b) => b.engagementRate - a.engagementRate);
+  // 게시일 최신순으로 정렬
+  const sortedContent = [...filteredContent].sort((a, b) =>
+    new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
+  );
 
   // 페이지네이션 계산
   const ITEMS_PER_PAGE = 10;
@@ -255,7 +255,11 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={formatNumber} />
+                <YAxis
+                  tick={{ fontSize: 12, fill: '#64748b' }}
+                  tickFormatter={formatNumber}
+                  domain={['dataMin - 10', 'dataMax + 10']}
+                />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: '#0f172a',
@@ -445,7 +449,7 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
 
             {/* 정렬 옵션 */}
             <div className="text-sm text-slate-500">
-              참여율 높은 순
+              게시일 최신순
             </div>
           </div>
         </div>
@@ -533,37 +537,39 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
 
         {/* 페이지네이션 */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-6 pt-6 border-t border-slate-100">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-            >
-              이전
-            </button>
-
-            {/* 페이지 번호 */}
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+            <span className="text-sm text-slate-500">
+              총 {sortedContent.length}개 중 {(currentPage - 1) * ITEMS_PER_PAGE + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, sortedContent.length)}개 표시
+            </span>
+            <div className="flex items-center gap-2">
               <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`w-8 h-8 text-sm rounded-lg ${
-                  currentPage === page
-                    ? 'bg-primary-950 text-white'
-                    : 'border border-slate-200 hover:bg-slate-50'
-                }`}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {page}
+                <ChevronLeft size={16} />
               </button>
-            ))}
-
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-            >
-              다음
-            </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                    currentPage === page
+                      ? 'bg-primary-600 text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         )}
       </section>

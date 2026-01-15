@@ -6,6 +6,8 @@ import type {
   DashFollower,
   DashFollowerInsight,
   DashMediaResponse,
+  DashAdAccount,
+  DashAdAccountWithInsights,
 } from '../types/metaDash';
 
 const BASE_URL = 'https://matcha.pnutbutter.kr';
@@ -97,6 +99,26 @@ export async function fetchDashMedias(
 ): Promise<DashMediaResponse[]> {
   const response = await fetchMetaDash<MetaDashResponse<DashMediaResponse[]>>(
     `/api/v1/dash-medias/my/${dashMemberId}`
+  );
+  return response.result || [];
+}
+
+// 6. 광고 계정 조회
+export async function fetchDashAdAccount(
+  dashMemberId: string
+): Promise<DashAdAccount[]> {
+  const response = await fetchMetaDash<MetaDashResponse<DashAdAccount[]>>(
+    `/api/v1/dash-ad/me/${dashMemberId}`
+  );
+  return response.result || [];
+}
+
+// 7. 광고 인사이트 (계정별 광고 성과)
+export async function fetchDashAdInsight(
+  dashMemberId: string
+): Promise<DashAdAccountWithInsights[]> {
+  const response = await fetchMetaDash<MetaDashResponse<DashAdAccountWithInsights[]>>(
+    `/api/v1/dash-ad/my-insight/${dashMemberId}`
   );
   return response.result || [];
 }

@@ -3,6 +3,7 @@ import type {
   DailyProfileData,
   AdPerformance,
   DailyAdData,
+  CampaignPerformance,
   Campaign,
   Influencer,
   SeedingItem,
@@ -78,7 +79,10 @@ export const AD_PERFORMANCE: AdPerformance = {
   ctr: 3.2,
   ctrGrowth: 11.2,
   impressions: 4850000,
+  reach: 1732143,
+  reachGrowth: 15.2,
   clicks: 155200,
+  clicksGrowth: 10.7,
   conversions: 4850,
   frequency: 2.8,
 };
@@ -98,6 +102,14 @@ export const DAILY_AD_DATA: DailyAdData[] = [
   { date: '12/12', spend: 2950000, roas: 4.8, clicks: 14200, impressions: 448000, conversions: 520, ctr: 3.17, cpc: 208 },
   { date: '12/13', spend: 2420000, roas: 4.3, clicks: 11500, impressions: 365000, conversions: 412, ctr: 3.15, cpc: 210 },
   { date: '12/14', spend: 2400000, roas: 4.2, clicks: 11200, impressions: 358000, conversions: 398, ctr: 3.13, cpc: 214 },
+];
+
+// 캠페인별 성과 더미 데이터
+export const CAMPAIGN_PERFORMANCE_DATA: CampaignPerformance[] = [
+  { id: '1', name: '신제품 론칭 캠페인', spend: 850000, roas: 5.2, reach: 523000, clicks: 45200, ctr: 3.1, cpc: 320, status: 'active' },
+  { id: '2', name: '여름 시즌 프로모션', spend: 720000, roas: 4.6, reach: 412000, clicks: 38900, ctr: 2.8, cpc: 350, status: 'active' },
+  { id: '3', name: '브랜드 인지도 캠페인', spend: 560000, roas: 3.2, reach: 687000, clicks: 28400, ctr: 2.1, cpc: 410, status: 'active' },
+  { id: '4', name: '리타게팅 캠페인', spend: 320000, roas: 6.8, reach: 98000, clicks: 42700, ctr: 4.5, cpc: 280, status: 'active' },
 ];
 
 // ============================================

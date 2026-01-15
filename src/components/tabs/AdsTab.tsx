@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   LineChart,
   Line,
@@ -17,13 +18,17 @@ import {
   TrendingUp,
   TrendingDown,
   Sparkles,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
-import type { AdPerformance, DailyAdData } from '../../types';
+import type { AdPerformance, DailyAdData, CampaignPerformance, ProfileInsight } from '../../types';
 
 interface AdsTabProps {
   adData: AdPerformance | null;
   dailyData: DailyAdData[] | null;
+  campaignData: CampaignPerformance[];
+  profileData: ProfileInsight | null;
   loading: boolean;
 }
 
@@ -39,37 +44,6 @@ const formatCurrency = (num: number): string => {
   if (num >= 10000) return '₩' + (num / 10000).toFixed(0) + '만';
   return '₩' + num.toLocaleString();
 };
-
-// 유기적 vs 광고 데이터 (더미)
-const reachSourceData = [
-  { name: '광고 도달', value: 69, color: '#f59e0b' },
-  { name: '유기적 도달', value: 31, color: '#6366f1' },
-];
-
-const engagementSourceData = [
-  { name: '유기적 참여', value: 58, color: '#ec4899' },
-  { name: '광고 참여', value: 42, color: '#8b5cf6' },
-];
-
-// 광고 캠페인별 성과 더미 데이터
-interface CampaignData {
-  id: string;
-  name: string;
-  spend: number;
-  roas: number;
-  reach: number;
-  clicks: number;
-  ctr: number;
-  cpc: number;
-  status: 'active' | 'paused' | 'completed';
-}
-
-const campaignPerformanceData: CampaignData[] = [
-  { id: '1', name: '신제품 론칭 캠페인', spend: 850000, roas: 5.2, reach: 523000, clicks: 45200, ctr: 3.1, cpc: 320, status: 'active' },
-  { id: '2', name: '여름 시즌 프로모션', spend: 720000, roas: 4.6, reach: 412000, clicks: 38900, ctr: 2.8, cpc: 350, status: 'active' },
-  { id: '3', name: '브랜드 인지도 캠페인', spend: 560000, roas: 3.2, reach: 687000, clicks: 28400, ctr: 2.1, cpc: 410, status: 'active' },
-  { id: '4', name: '리타게팅 캠페인', spend: 320000, roas: 6.8, reach: 98000, clicks: 42700, ctr: 4.5, cpc: 280, status: 'active' },
-];
 
 // 광고 AI 분석 데이터
 const adAIAnalysis = {
@@ -125,7 +99,7 @@ function AdKPICard({
       </div>
       <div className={`flex items-center gap-1 text-xs font-medium ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
         {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-        <span>전월 대비 {change > 0 ? '+' : ''}{change.toFixed(1)}%</span>
+        <span>전일 대비 {change > 0 ? '+' : ''}{change.toFixed(1)}%</span>
       </div>
     </div>
   );
@@ -190,7 +164,38 @@ function SourcePieChart({
   );
 }
 
-export function AdsTab({ adData, dailyData, loading }: AdsTabProps) {
+export function AdsTab({ adData, dailyData, campaignData, profileData, loading }: AdsTabProps) {
+  // 캠페인 테이블 페이지네이션
+  const [campaignPage, setCampaignPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+  const totalPages = Math.ceil(campaignData.length / ITEMS_PER_PAGE);
+  const paginatedCampaigns = campaignData.slice(
+    (campaignPage - 1) * ITEMS_PER_PAGE,
+    campaignPage * ITEMS_PER_PAGE
+  );
+
+  // 유기적 vs 광고 데이터 계산
+  const organicReach = profileData?.reach || 0;
+  const adReach = adData?.reach || 0;
+  const totalReach = organicReach + adReach;
+  const adReachPercent = totalReach > 0 ? Math.round((adReach / totalReach) * 100) : 0;
+  const organicReachPercent = totalReach > 0 ? 100 - adReachPercent : 0;
+
+  const organicEngagement = (profileData?.profileViews || 0) + (profileData?.websiteClicks || 0);
+  const adEngagement = adData?.clicks || 0;
+  const totalEngagement = organicEngagement + adEngagement;
+  const organicEngagementPercent = totalEngagement > 0 ? Math.round((organicEngagement / totalEngagement) * 100) : 0;
+  const adEngagementPercent = totalEngagement > 0 ? 100 - organicEngagementPercent : 0;
+
+  const reachSourceData = [
+    { name: '광고 도달', value: adReachPercent, color: '#f59e0b' },
+    { name: '유기적 도달', value: organicReachPercent, color: '#6366f1' },
+  ];
+
+  const engagementSourceData = [
+    { name: '유기적 참여', value: organicEngagementPercent, color: '#ec4899' },
+    { name: '광고 참여', value: adEngagementPercent, color: '#8b5cf6' },
+  ];
   if (!adData) {
     return (
       <div className="flex items-center justify-center h-64 text-slate-500">
@@ -223,17 +228,17 @@ export function AdsTab({ adData, dailyData, loading }: AdsTabProps) {
         />
         <AdKPICard
           title="광고 도달"
-          value={formatNumber(adData.impressions / adData.frequency)}
-          change={15.2}
-          isPositive={true}
+          value={formatNumber(adData.reach)}
+          change={adData.reachGrowth}
+          isPositive={adData.reachGrowth >= 0}
           metricKey="reach"
           loading={loading}
         />
         <AdKPICard
           title="광고 클릭"
           value={formatNumber(adData.clicks)}
-          change={10.7}
-          isPositive={true}
+          change={adData.clicksGrowth}
+          isPositive={adData.clicksGrowth >= 0}
           metricKey="clicks"
           loading={loading}
         />
@@ -247,7 +252,7 @@ export function AdsTab({ adData, dailyData, loading }: AdsTabProps) {
         />
         <AdKPICard
           title="CPC"
-          value={'₩' + adData.cpc.toLocaleString()}
+          value={'₩' + Math.round(adData.cpc).toLocaleString()}
           change={adData.cpcGrowth}
           isPositive={adData.cpcGrowth <= 0}
           metricKey="cpc"
@@ -273,15 +278,15 @@ export function AdsTab({ adData, dailyData, loading }: AdsTabProps) {
               </tr>
             </thead>
             <tbody>
-              {campaignPerformanceData.map((campaign, index) => (
-                <tr key={campaign.id} className={index < campaignPerformanceData.length - 1 ? 'border-b border-slate-100' : ''}>
+              {paginatedCampaigns.map((campaign, index) => (
+                <tr key={campaign.id} className={index < paginatedCampaigns.length - 1 ? 'border-b border-slate-100' : ''}>
                   <td className="py-4 px-4 text-sm text-slate-700">{campaign.name}</td>
                   <td className="py-4 px-4 text-sm text-slate-600 text-right">₩{campaign.spend.toLocaleString()}</td>
                   <td className="py-4 px-4 text-sm font-semibold text-emerald-600 text-right">{campaign.roas}x</td>
                   <td className="py-4 px-4 text-sm text-slate-600 text-right">{formatNumber(campaign.reach)}</td>
                   <td className="py-4 px-4 text-sm text-slate-600 text-right">{formatNumber(campaign.clicks)}</td>
-                  <td className="py-4 px-4 text-sm text-slate-600 text-right">{campaign.ctr}%</td>
-                  <td className="py-4 px-4 text-sm text-slate-600 text-right">₩{campaign.cpc.toLocaleString()}</td>
+                  <td className="py-4 px-4 text-sm text-slate-600 text-right">{campaign.ctr.toFixed(1)}%</td>
+                  <td className="py-4 px-4 text-sm text-slate-600 text-right">₩{Math.round(campaign.cpc).toLocaleString()}</td>
                   <td className="py-4 px-4 text-center">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                       campaign.status === 'active'
@@ -298,6 +303,43 @@ export function AdsTab({ adData, dailyData, loading }: AdsTabProps) {
             </tbody>
           </table>
         </div>
+        {/* 페이지네이션 */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+            <span className="text-sm text-slate-500">
+              총 {campaignData.length}개 중 {(campaignPage - 1) * ITEMS_PER_PAGE + 1}-{Math.min(campaignPage * ITEMS_PER_PAGE, campaignData.length)}개 표시
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCampaignPage(p => Math.max(1, p - 1))}
+                disabled={campaignPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCampaignPage(page)}
+                  className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                    campaignPage === page
+                      ? 'bg-primary-600 text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={() => setCampaignPage(p => Math.min(totalPages, p + 1))}
+                disabled={campaignPage === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Main Performance Chart */}
@@ -305,20 +347,16 @@ export function AdsTab({ adData, dailyData, loading }: AdsTabProps) {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-slate-900">일별 광고 성과</h3>
-            <InfoTooltip metricKey="roas" />
+            <InfoTooltip metricKey="spend" />
           </div>
           <div className="flex items-center gap-6 text-xs">
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-primary-500" />
-              <span className="text-slate-600">ROAS</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-emerald-500" />
-              <span className="text-slate-600">전환</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded bg-violet-200" />
+              <div className="w-3 h-3 rounded bg-violet-300" />
               <span className="text-slate-600">지출</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-primary-500" />
+              <span className="text-slate-600">클릭</span>
             </div>
           </div>
         </div>
@@ -327,7 +365,7 @@ export function AdsTab({ adData, dailyData, loading }: AdsTabProps) {
             <ComposedChart data={dailyData || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} />
-              <YAxis yAxisId="left" tick={{ fontSize: 12, fill: '#64748b' }} />
+              <YAxis yAxisId="left" tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(v) => '₩' + (v / 1000).toFixed(0) + 'K'} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: '#64748b' }} />
               <Tooltip
                 contentStyle={{
@@ -338,29 +376,19 @@ export function AdsTab({ adData, dailyData, loading }: AdsTabProps) {
                   padding: '12px',
                 }}
                 formatter={(value: number, name: string) => {
-                  if (name === 'ROAS') return [value + 'x', name];
                   if (name === '지출') return [formatCurrency(value), name];
                   return [formatNumber(value), name];
                 }}
               />
-              <Bar yAxisId="right" dataKey="spend" fill="#ddd6fe" name="지출" radius={[4, 4, 0, 0]} />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="roas"
-                stroke="#2563eb"
-                strokeWidth={3}
-                dot={{ fill: '#2563eb', r: 4 }}
-                name="ROAS"
-              />
+              <Bar yAxisId="left" dataKey="spend" fill="#a78bfa" name="지출" radius={[4, 4, 0, 0]} />
               <Line
                 yAxisId="right"
                 type="monotone"
-                dataKey="conversions"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={{ fill: '#10b981', r: 3 }}
-                name="전환"
+                dataKey="clicks"
+                stroke="#2563eb"
+                strokeWidth={3}
+                dot={{ fill: '#2563eb', r: 5, strokeWidth: 2, stroke: '#fff' }}
+                name="클릭"
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -439,53 +467,6 @@ export function AdsTab({ adData, dailyData, loading }: AdsTabProps) {
         </div>
       </section>
 
-      {/* 전환 행동 비교 */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">전환 행동 비교</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200">
-                <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">지표</th>
-                <th className="text-center py-3 px-4 text-sm font-medium text-slate-500">유기적</th>
-                <th className="text-center py-3 px-4 text-sm font-medium text-slate-500">광고</th>
-                <th className="text-center py-3 px-4 text-sm font-medium text-slate-500">전체</th>
-                <th className="text-center py-3 px-4 text-sm font-medium text-slate-500">광고 기여도</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-slate-100">
-                <td className="py-4 px-4 text-sm text-slate-700">프로필 방문</td>
-                <td className="py-4 px-4 text-sm text-slate-600 text-center">8,934</td>
-                <td className="py-4 px-4 text-sm text-slate-600 text-center">15,234</td>
-                <td className="py-4 px-4 text-sm font-medium text-slate-700 text-center">24,168</td>
-                <td className="py-4 px-4 text-sm font-semibold text-blue-600 text-center">63.0%</td>
-              </tr>
-              <tr className="border-b border-slate-100">
-                <td className="py-4 px-4 text-sm text-slate-700">웹사이트 클릭</td>
-                <td className="py-4 px-4 text-sm text-slate-600 text-center">2,345</td>
-                <td className="py-4 px-4 text-sm text-slate-600 text-center">6,789</td>
-                <td className="py-4 px-4 text-sm font-medium text-slate-700 text-center">9,134</td>
-                <td className="py-4 px-4 text-sm font-semibold text-blue-600 text-center">74.3%</td>
-              </tr>
-              <tr className="border-b border-slate-100">
-                <td className="py-4 px-4 text-sm text-slate-700">팔로우</td>
-                <td className="py-4 px-4 text-sm text-slate-600 text-center">847</td>
-                <td className="py-4 px-4 text-sm text-slate-600 text-center">1,523</td>
-                <td className="py-4 px-4 text-sm font-medium text-slate-700 text-center">2,370</td>
-                <td className="py-4 px-4 text-sm font-semibold text-blue-600 text-center">64.3%</td>
-              </tr>
-              <tr>
-                <td className="py-4 px-4 text-sm text-slate-700">저장</td>
-                <td className="py-4 px-4 text-sm text-slate-600 text-center">1,234</td>
-                <td className="py-4 px-4 text-sm text-slate-600 text-center">892</td>
-                <td className="py-4 px-4 text-sm font-medium text-slate-700 text-center">2,126</td>
-                <td className="py-4 px-4 text-sm font-semibold text-blue-600 text-center">42.0%</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
       </div>
 
       {/* AI 분석 사이드바 */}

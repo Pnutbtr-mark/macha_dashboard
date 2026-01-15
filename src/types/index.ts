@@ -45,7 +45,10 @@ export interface AdPerformance {
   ctr: number;
   ctrGrowth: number;
   impressions: number;
+  reach: number;
+  reachGrowth: number;
   clicks: number;
+  clicksGrowth: number;
   conversions: number;
   frequency: number;
 }
@@ -59,6 +62,19 @@ export interface DailyAdData {
   conversions: number;
   ctr: number;
   cpc: number;
+}
+
+// 캠페인별 성과 데이터 (UI용)
+export interface CampaignPerformance {
+  id: string;
+  name: string;
+  spend: number;
+  roas: number;
+  reach: number;
+  clicks: number;
+  ctr: number;
+  cpc: number;
+  status: 'active' | 'paused' | 'completed';
 }
 
 // 캠페인 데이터 (Notion/DB)

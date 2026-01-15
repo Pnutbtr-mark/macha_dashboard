@@ -11,12 +11,14 @@ import type {
   AIAnalysis,
   FollowerDemographic,
   ProfileContentItem,
+  CampaignPerformance,
 } from '../types';
 import {
   PROFILE_INSIGHT,
   DAILY_PROFILE_DATA,
   AD_PERFORMANCE,
   DAILY_AD_DATA,
+  CAMPAIGN_PERFORMANCE_DATA,
   INFLUENCERS,
   SEEDING_LIST,
   AFFILIATE_LINKS,
@@ -29,12 +31,16 @@ import {
   fetchDashFollowers,
   fetchDashFollowerInsight,
   fetchDashMedias,
+  fetchDashAdInsight,
 } from '../services/metaDashApi';
 import {
   mapToProfileInsight,
   mapToDailyProfileData,
   mapToFollowerDemographic,
   mapToContentItems,
+  mapToAdPerformance,
+  mapToDailyAdData,
+  mapToCampaignPerformance,
 } from '../utils/metaDashMapper';
 
 // ============================================
@@ -171,27 +177,54 @@ export function useDailyProfileData(period: string): ApiResponse<DailyProfileDat
 }
 
 // ============================================
-// 광고 성과 (Meta Ads API)
+// 광고 성과 (Meta Dash API)
 // ============================================
-export function useAdPerformance(): ApiResponse<AdPerformance> {
-  const [data, setData] = useState<AdPerformance | null>(null);
+interface AdPerformanceResult {
+  adPerformance: AdPerformance | null;
+  campaignData: CampaignPerformance[];
+}
+
+export function useAdPerformance(userId?: string): ApiResponse<AdPerformanceResult> {
+  const [data, setData] = useState<AdPerformanceResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!userId) {
+      setLoading(false);
+      setData({
+        adPerformance: AD_PERFORMANCE,
+        campaignData: CAMPAIGN_PERFORMANCE_DATA,
+      });
+      return;
+    }
+
     setLoading(true);
     setError(null);
+
     try {
-      const result = await fetchFromApi<AdPerformance>('/ads/performance');
-      setData(result);
-    } catch {
-      setData(AD_PERFORMANCE);
+      // Meta Dash API 호출
+      const adInsights = await fetchDashAdInsight(userId);
+
+      // 데이터 변환
+      const adPerformance = mapToAdPerformance(adInsights);
+      const campaignData = mapToCampaignPerformance(adInsights);
+      setData({ adPerformance, campaignData });
+      setError(null);
+    } catch (err) {
+      console.error('광고 성과 조회 실패:', err);
+      setError(err instanceof Error ? err.message : '데이터를 불러올 수 없습니다');
+      // 폴백: 더미 데이터
+      setData({
+        adPerformance: AD_PERFORMANCE,
+        campaignData: CAMPAIGN_PERFORMANCE_DATA,
+      });
     } finally {
       setLoading(false);
       setLastUpdated(new Date());
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     fetchData();
@@ -201,27 +234,42 @@ export function useAdPerformance(): ApiResponse<AdPerformance> {
 }
 
 // ============================================
-// 일별 광고 데이터 (Meta Ads API)
+// 일별 광고 데이터 (Meta Dash API)
 // ============================================
-export function useDailyAdData(period: string): ApiResponse<DailyAdData[]> {
+export function useDailyAdData(period: string, userId?: string): ApiResponse<DailyAdData[]> {
   const [data, setData] = useState<DailyAdData[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!userId) {
+      setLoading(false);
+      setData(DAILY_AD_DATA);
+      return;
+    }
+
     setLoading(true);
     setError(null);
+
     try {
-      const result = await fetchFromApi<DailyAdData[]>(`/ads/daily?period=${period}`);
-      setData(result);
-    } catch {
+      // Meta Dash API 호출
+      const adInsights = await fetchDashAdInsight(userId);
+
+      // 데이터 변환
+      const dailyData = mapToDailyAdData(adInsights);
+      setData(dailyData);
+      setError(null);
+    } catch (err) {
+      console.error('일별 광고 데이터 조회 실패:', err);
+      setError(err instanceof Error ? err.message : '데이터를 불러올 수 없습니다');
+      // 폴백: 더미 데이터
       setData(DAILY_AD_DATA);
     } finally {
       setLoading(false);
       setLastUpdated(new Date());
     }
-  }, [period]);
+  }, [userId, period]);
 
   useEffect(() => {
     fetchData();
