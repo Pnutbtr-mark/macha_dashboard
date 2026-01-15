@@ -106,10 +106,10 @@ export const DAILY_AD_DATA: DailyAdData[] = [
 
 // 캠페인별 성과 더미 데이터
 export const CAMPAIGN_PERFORMANCE_DATA: CampaignPerformance[] = [
-  { id: '1', name: '신제품 론칭 캠페인', spend: 850000, roas: 5.2, reach: 523000, clicks: 45200, ctr: 3.1, cpc: 320, status: 'active' },
-  { id: '2', name: '여름 시즌 프로모션', spend: 720000, roas: 4.6, reach: 412000, clicks: 38900, ctr: 2.8, cpc: 350, status: 'active' },
-  { id: '3', name: '브랜드 인지도 캠페인', spend: 560000, roas: 3.2, reach: 687000, clicks: 28400, ctr: 2.1, cpc: 410, status: 'active' },
-  { id: '4', name: '리타게팅 캠페인', spend: 320000, roas: 6.8, reach: 98000, clicks: 42700, ctr: 4.5, cpc: 280, status: 'active' },
+  { id: '1', name: '신제품 론칭 캠페인', spend: 850000, roas: 5.2, reach: 523000, clicks: 45200, ctr: 3.1, cpc: 320, status: 'active', startDate: '2026-01-10' },
+  { id: '2', name: '여름 시즌 프로모션', spend: 720000, roas: 4.6, reach: 412000, clicks: 38900, ctr: 2.8, cpc: 350, status: 'active', startDate: '2026-01-08' },
+  { id: '3', name: '브랜드 인지도 캠페인', spend: 560000, roas: 3.2, reach: 687000, clicks: 28400, ctr: 2.1, cpc: 410, status: 'active', startDate: '2026-01-05' },
+  { id: '4', name: '리타게팅 캠페인', spend: 320000, roas: 6.8, reach: 98000, clicks: 42700, ctr: 4.5, cpc: 280, status: 'active', startDate: '2026-01-12' },
 ];
 
 // ============================================
