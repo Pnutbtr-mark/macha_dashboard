@@ -216,7 +216,9 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
                       'ads_read',
                       'ads_management',
                     ].join(',') +
-                    '&response_type=code';
+                    '&response_type=code' +
+                    '&auth_type=rerequest' +
+                    '&enable_profile_selector=true';
                   window.location.href = url;
                 }}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-full font-medium text-white text-xs transition-all hover:-translate-y-0.5 hover:shadow-lg"
