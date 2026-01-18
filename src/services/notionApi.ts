@@ -224,7 +224,7 @@ export interface CampaignResultApiResponse {
 
 // 캠페인 목록 조회 (새 API)
 export async function fetchCampaigns(dashMemberId: string): Promise<NotionCampaign[]> {
-  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || '';
+  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || 'https://matcha.pnutbutter.kr';
 
   const url = `${baseUrl}/api/v1/campaigns/my/${dashMemberId}`;
   console.log('[CampaignAPI] Fetching:', url);
@@ -275,7 +275,7 @@ export interface CreateCampaignRequest {
 
 // 캠페인 생성 (새 API)
 export async function createCampaign(dashMemberId: string, campaign: CreateCampaignRequest): Promise<CampaignDto> {
-  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || '';
+  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || 'https://matcha.pnutbutter.kr';
 
   const url = `${baseUrl}/api/v1/campaigns/create/${dashMemberId}`;
   console.log('[CampaignAPI] Creating campaign:', url);
@@ -341,7 +341,7 @@ export async function fetchSeeding(campaignId: string): Promise<NotionSeeding[]>
 
 // 캠페인 결과 데이터 조회 (Instagram 포스트)
 export async function fetchCampaignResults(campaignId: string): Promise<CampaignResultDto[]> {
-  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || '';
+  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || 'https://matcha.pnutbutter.kr';
   const url = `${baseUrl}/api/v1/my-campaign-result/${campaignId}`;
   console.log('[CampaignAPI] Fetching campaign results:', url);
 
@@ -362,7 +362,7 @@ export async function fetchCampaignResults(campaignId: string): Promise<Campaign
 
 // 캠페인 데이터 동기화 (Apify)
 export async function syncCampaignData(campaignId: string, time?: string): Promise<void> {
-  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || '';
+  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || 'https://matcha.pnutbutter.kr';
   const url = `${baseUrl}/api/v1/apify-sync/${campaignId}`;
   console.log('[CampaignAPI] Syncing campaign data:', url);
 
