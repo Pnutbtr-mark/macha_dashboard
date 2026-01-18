@@ -176,6 +176,48 @@ export interface DashboardStats {
   };
 }
 
+// 캠페인 결과 데이터 타입 (Instagram 포스트 데이터)
+export interface CampaignResultDto {
+  id: string;
+  dashMemberId: string;
+  campaignId: string;
+  time: string;
+  postId: string;
+  postType: string;
+  shortCode: string;
+  postUrl: string;
+  caption: string;
+  likesCount: number;
+  commentsCount: number;
+  videoPlayCount: number;
+  igPlayCount: number;
+  reshareCount: number;
+  videoDuration: number;
+  postedAt: string;
+  ownerId: string;
+  ownerUsername: string;
+  ownerFullName: string;
+  ownerProfilePicUrl: string;
+  displayUrl: string;
+  videoUrl: string;
+  images: string;
+  hashtags: string;
+  mentions: string;
+  taggedUsers: string;
+  musicInfo: string;
+  coauthorProducers: string;
+  childPosts: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CampaignResultApiResponse {
+  responseName: string;
+  responseCode: number;
+  message: string;
+  result: CampaignResultDto[];
+}
+
 // ============================================
 // API 함수
 // ============================================
@@ -295,4 +337,49 @@ export async function fetchDashboardStats(campaignId?: string): Promise<Dashboar
 // 시딩 (캠페인 참여자) 조회
 export async function fetchSeeding(campaignId: string): Promise<NotionSeeding[]> {
   return fetchApi<NotionSeeding[]>(`/api/seeding?campaignId=${campaignId}`);
+}
+
+// 캠페인 결과 데이터 조회 (Instagram 포스트)
+export async function fetchCampaignResults(campaignId: string): Promise<CampaignResultDto[]> {
+  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || '';
+  const url = `${baseUrl}/api/v1/my-campaign-result/${campaignId}`;
+  console.log('[CampaignAPI] Fetching campaign results:', url);
+
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`캠페인 결과 조회 실패: ${response.status}`);
+  }
+
+  const data: CampaignResultApiResponse = await response.json();
+  console.log('[CampaignAPI] Campaign results:', data);
+  return data.result || [];
+}
+
+// 캠페인 데이터 동기화 (Apify)
+export async function syncCampaignData(campaignId: string, time?: string): Promise<void> {
+  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || '';
+  const url = `${baseUrl}/api/v1/apify-sync/${campaignId}`;
+  console.log('[CampaignAPI] Syncing campaign data:', url);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      time: time || new Date().toISOString().split('T')[0],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`캠페인 데이터 동기화 실패: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[CampaignAPI] Sync result:', data);
 }

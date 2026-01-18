@@ -33,7 +33,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
-import { fetchCampaigns, fetchMentions, fetchSeeding, type NotionCampaign, type NotionMention, type NotionSeeding } from '../../services/notionApi';
+import { fetchCampaigns, fetchMentions, fetchSeeding, fetchCampaignResults, type NotionCampaign, type NotionMention, type NotionSeeding, type CampaignResultDto } from '../../services/notionApi';
 import type {
   Influencer,
   SeedingItem,
@@ -1213,6 +1213,43 @@ function convertNotionMention(mention: NotionMention): ContentItem {
   };
 }
 
+// 캠페인 결과 데이터를 ContentItem으로 변환
+function convertCampaignResultToContent(result: CampaignResultDto): ContentItem {
+  // postType에 따라 콘텐츠 타입 결정
+  const getContentType = (postType: string): 'image' | 'video' | 'reel' | 'story' => {
+    const type = postType?.toLowerCase() || '';
+    if (type.includes('reel') || type.includes('video')) return 'reel';
+    if (type.includes('story')) return 'story';
+    if (type.includes('video')) return 'video';
+    return 'image';
+  };
+
+  // 총 조회수 계산 (videoPlayCount + igPlayCount)
+  const totalViews = (result.videoPlayCount || 0) + (result.igPlayCount || 0);
+
+  // engagement rate 계산
+  const totalEngagement = (result.likesCount || 0) + (result.commentsCount || 0) + (result.reshareCount || 0);
+  const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : 0;
+
+  return {
+    id: result.id,
+    influencerId: result.ownerId,
+    influencerName: result.ownerFullName || result.ownerUsername,
+    platform: 'instagram',
+    type: getContentType(result.postType),
+    thumbnail: result.displayUrl || 'https://via.placeholder.com/300x400',
+    originalUrl: result.postUrl,
+    downloadUrl: result.videoUrl || result.displayUrl,
+    likes: result.likesCount,
+    comments: result.commentsCount,
+    shares: result.reshareCount,
+    views: totalViews,
+    engagementRate: Math.round(engagementRate * 100) / 100,
+    postedAt: result.postedAt,
+    caption: result.caption,
+  };
+}
+
 // AI 분석 API 호출 함수
 async function fetchAIAnalysis(
   campaignName: string,
@@ -1267,6 +1304,7 @@ function CampaignDetailView({
   const [activeSubTab, setActiveSubTab] = useState<'performance' | 'seeding' | 'affiliate' | 'content'>('performance');
   const [notionSeeding, setNotionSeeding] = useState<SeedingItem[]>([]);
   const [notionContent, setNotionContent] = useState<ContentItem[]>([]);
+  const [_campaignResults, setCampaignResults] = useState<CampaignResultDto[]>([]);
   const [detailLoading, setDetailLoading] = useState(true);
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -1334,24 +1372,33 @@ function CampaignDetailView({
     }
   };
 
-  // Notion에서 상세 데이터 로드
+  // 상세 데이터 로드
   useEffect(() => {
     const loadDetailData = async () => {
       try {
         setDetailLoading(true);
         console.log('[CampaignDetail] Loading detail data for campaign:', campaign.id);
 
-        // 시딩과 멘션 데이터 병렬 로드
-        const [seedingData, mentionsData] = await Promise.all([
-          fetchSeeding(campaign.id),
-          fetchMentions(campaign.id),
+        // 시딩, 멘션, 캠페인 결과 데이터 병렬 로드
+        const [seedingData, mentionsData, resultsData] = await Promise.all([
+          fetchSeeding(campaign.id).catch(() => []),
+          fetchMentions(campaign.id).catch(() => []),
+          fetchCampaignResults(campaign.id).catch(() => []),
         ]);
 
         console.log('[CampaignDetail] Seeding data:', seedingData);
         console.log('[CampaignDetail] Mentions data:', mentionsData);
+        console.log('[CampaignDetail] Campaign results:', resultsData);
 
         setNotionSeeding(seedingData.map(convertNotionSeeding));
-        setNotionContent(mentionsData.map(convertNotionMention));
+        setCampaignResults(resultsData);
+
+        // 캠페인 결과가 있으면 우선 사용, 없으면 멘션 데이터 사용
+        if (resultsData.length > 0) {
+          setNotionContent(resultsData.map(convertCampaignResultToContent));
+        } else {
+          setNotionContent(mentionsData.map(convertNotionMention));
+        }
       } catch (err) {
         console.error('[CampaignDetail] 상세 데이터 로드 실패:', err);
       } finally {

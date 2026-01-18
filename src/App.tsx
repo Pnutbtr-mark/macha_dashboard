@@ -32,6 +32,7 @@ import {
   useProfileContent,
 } from './hooks/useApi';
 import { syncDashMember } from './services/metaDashApi';
+import { fetchCampaigns, syncCampaignData } from './services/notionApi';
 
 // 탭 타입
 type TabType = 'profile' | 'ads' | 'campaign' | 'influencers';
@@ -113,7 +114,29 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
       }
     }
 
-    // 2. 모든 데이터 새로고침
+    // 2. 캠페인 데이터 동기화 (apify-sync)
+    if (user?.igUserNickName) {
+      try {
+        console.log('캠페인 데이터 동기화 시작...');
+        const campaigns = await fetchCampaigns(user.igUserNickName);
+        // 각 캠페인에 대해 apify-sync 호출
+        await Promise.all(
+          campaigns.map(async (campaign) => {
+            try {
+              await syncCampaignData(campaign.id);
+              console.log(`캠페인 동기화 완료: ${campaign.name}`);
+            } catch (err) {
+              console.error(`캠페인 동기화 실패: ${campaign.name}`, err);
+            }
+          })
+        );
+        console.log('모든 캠페인 동기화 완료');
+      } catch (error) {
+        console.error('캠페인 목록 조회 실패:', error);
+      }
+    }
+
+    // 3. 모든 데이터 새로고침
     refetchProfile();
     refetchDailyProfile();
     refetchFollowerDemographic();
@@ -127,7 +150,7 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
     refetchAI();
 
     console.log('전체 데이터 새로고침 완료');
-  }, [user?.id, refetchProfile, refetchDailyProfile, refetchFollowerDemographic, refetchProfileContent, refetchAd, refetchDailyAd, refetchInfluencers, refetchSeeding, refetchAffiliate, refetchContent, refetchAI]);
+  }, [user?.id, user?.igUserNickName, refetchProfile, refetchDailyProfile, refetchFollowerDemographic, refetchProfileContent, refetchAd, refetchDailyAd, refetchInfluencers, refetchSeeding, refetchAffiliate, refetchContent, refetchAI]);
 
   // 탭 설정
   const tabs: { key: TabType; label: string; icon: typeof User }[] = [
