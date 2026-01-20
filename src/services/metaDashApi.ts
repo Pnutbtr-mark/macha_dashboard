@@ -49,16 +49,30 @@ async function fetchMetaDash<T>(
   }
 }
 
-// 1. 동기화 (금일 데이터 갱신)
+// 1. 프로필 동기화 (금일 데이터 갱신)
 export async function syncDashMember(dashMemberId: string): Promise<boolean> {
   try {
     const response = await fetchMetaDash<SyncResponse>(
-      `/api/v1/dash-members/sync/${dashMemberId}`,
+      `/api/v1/sync-profile/${dashMemberId}`,
       { method: 'POST' }
     );
     return response.result?.[0] ?? false;
   } catch (error) {
-    console.error('동기화 실패:', error);
+    console.error('프로필 동기화 실패:', error);
+    return false;
+  }
+}
+
+// 1-2. 광고 동기화
+export async function syncDashAd(dashMemberId: string): Promise<boolean> {
+  try {
+    const response = await fetchMetaDash<SyncResponse>(
+      `/api/v1/sync-ad/${dashMemberId}`,
+      { method: 'POST' }
+    );
+    return response.result?.[0] ?? false;
+  } catch (error) {
+    console.error('광고 동기화 실패:', error);
     return false;
   }
 }

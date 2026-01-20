@@ -26,9 +26,10 @@ import {
   BarChart3,
   Calendar,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
-import { fetchCampaigns, fetchCampaignResults, type NotionCampaign, type CampaignResultDto } from '../../services/notionApi';
+import { fetchCampaigns, fetchCampaignResults, syncCampaignData, type NotionCampaign, type CampaignResultDto } from '../../services/notionApi';
 import type {
   Influencer,
   SeedingItem,
@@ -1182,6 +1183,7 @@ function CampaignDetailView({
   const [detailLoading, setDetailLoading] = useState(true);
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   // 성과 데이터 계산
   const performanceData = useMemo(() => {
@@ -1246,57 +1248,92 @@ function CampaignDetailView({
     }
   };
 
-  // 상세 데이터 로드
+  // 상세 데이터 로드 함수
+  const loadDetailData = async () => {
+    try {
+      setDetailLoading(true);
+      console.log('[CampaignDetail] Loading detail data for campaign:', campaign.id);
+
+      // 캠페인 결과 데이터 로드 (서버 API)
+      const resultsData = await fetchCampaignResults(campaign.id).catch(() => []);
+
+      console.log('[CampaignDetail] Campaign results:', resultsData);
+
+      // 캠페인 결과에서 인플루언서 정보 추출하여 시딩 리스트 생성
+      const seedingData = extractSeedingFromResults(resultsData);
+      console.log('[CampaignDetail] Extracted seeding data:', seedingData);
+
+      setNotionSeeding(seedingData);
+      setCampaignResults(resultsData);
+      setNotionContent(resultsData.map(convertCampaignResultToContent));
+    } catch (err) {
+      console.error('[CampaignDetail] 상세 데이터 로드 실패:', err);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // 캠페인 데이터 동기화 (Apify)
+  const handleSyncCampaign = async () => {
+    try {
+      setSyncing(true);
+      console.log('[CampaignDetail] 캠페인 데이터 동기화 시작:', campaign.id);
+
+      await syncCampaignData(campaign.id);
+      console.log('[CampaignDetail] 동기화 완료, 데이터 새로고침...');
+
+      // 동기화 후 데이터 다시 로드
+      await loadDetailData();
+    } catch (err) {
+      console.error('[CampaignDetail] 동기화 실패:', err);
+      alert('캠페인 데이터 동기화에 실패했습니다.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // 초기 데이터 로드
   useEffect(() => {
-    const loadDetailData = async () => {
-      try {
-        setDetailLoading(true);
-        console.log('[CampaignDetail] Loading detail data for campaign:', campaign.id);
-
-        // 캠페인 결과 데이터 로드 (서버 API)
-        const resultsData = await fetchCampaignResults(campaign.id).catch(() => []);
-
-        console.log('[CampaignDetail] Campaign results:', resultsData);
-
-        // 캠페인 결과에서 인플루언서 정보 추출하여 시딩 리스트 생성
-        const seedingData = extractSeedingFromResults(resultsData);
-        console.log('[CampaignDetail] Extracted seeding data:', seedingData);
-
-        setNotionSeeding(seedingData);
-        setCampaignResults(resultsData);
-        setNotionContent(resultsData.map(convertCampaignResultToContent));
-      } catch (err) {
-        console.error('[CampaignDetail] 상세 데이터 로드 실패:', err);
-      } finally {
-        setDetailLoading(false);
-      }
-    };
-
     loadDetailData();
   }, [campaign.id]);
 
   return (
     <div className="space-y-6">
       {/* Sub Navigation */}
-      <div className="flex items-center gap-2 bg-white rounded-xl p-1.5 shadow-sm border border-slate-100">
-        {[
-          { key: 'performance', label: '캠페인 성과', icon: BarChart3 },
-          { key: 'seeding', label: '참여 인플루언서', icon: Package },
-          { key: 'content', label: '콘텐츠 갤러리', icon: Image },
-        ].map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setActiveSubTab(key as typeof activeSubTab)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              activeSubTab === key
-                ? 'bg-primary-600 text-white'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <Icon size={16} />
-            {label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between bg-white rounded-xl p-1.5 shadow-sm border border-slate-100">
+        <div className="flex items-center gap-2">
+          {[
+            { key: 'performance', label: '캠페인 성과', icon: BarChart3 },
+            { key: 'seeding', label: '참여 인플루언서', icon: Package },
+            { key: 'content', label: '콘텐츠 갤러리', icon: Image },
+          ].map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveSubTab(key as typeof activeSubTab)}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeSubTab === key
+                  ? 'bg-primary-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleSyncCampaign}
+          disabled={syncing}
+          className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white text-sm font-medium rounded-lg transition-colors mr-1"
+          title="캠페인 데이터 동기화"
+        >
+          {syncing ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <RefreshCw size={14} />
+          )}
+          {syncing ? '동기화 중...' : '동기화'}
+        </button>
       </div>
 
       {/* Sub Tab Content */}

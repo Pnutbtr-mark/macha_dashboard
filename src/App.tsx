@@ -31,7 +31,7 @@ import {
   useFollowerDemographic,
   useProfileContent,
 } from './hooks/useApi';
-import { syncDashMember } from './services/metaDashApi';
+import { syncDashMember, syncDashAd } from './services/metaDashApi';
 
 // 탭 타입
 type TabType = 'profile' | 'ads' | 'campaign' | 'influencers';
@@ -126,10 +126,10 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
   const handleRefreshAds = useCallback(async () => {
     console.log('광고 데이터 동기화 시작...');
 
-    // Sync API 호출 (Meta Dash)
+    // Sync API 호출 (광고 전용)
     if (user?.id) {
       try {
-        const syncResult = await syncDashMember(user.id);
+        const syncResult = await syncDashAd(user.id);
         console.log('광고 동기화 결과:', syncResult);
       } catch (error) {
         console.error('광고 동기화 실패:', error);
