@@ -10,6 +10,7 @@ import type {
   DashAdAccountWithInsights,
   DashInfluencer,
   DashInfluencerDetailResponse,
+  DashInfluencerWithDetail,
   DashAdListItem,
   DashAdCampaignDetailItem,
 } from '../types/metaDash';
@@ -169,7 +170,15 @@ export async function fetchDashInfluencerDetail(
   return response.result?.[0] || null;
 }
 
-// 10. 광고 캠페인 목록 조회
+// 10. 인플루언서 목록 + 상세 통합 조회 (신규)
+export async function fetchDashInfluencersWithDetail(): Promise<DashInfluencerWithDetail[]> {
+  const response = await fetchMetaDash<MetaDashResponse<DashInfluencerWithDetail[]>>(
+    `/api/v1/dash-influencers/list-with-detail`
+  );
+  return response.result || [];
+}
+
+// 11. 광고 캠페인 목록 조회
 export async function fetchDashAdList(
   dashMemberId: string
 ): Promise<DashAdListItem[]> {

@@ -74,6 +74,7 @@ export interface DashMedia {
   mediaType: string;   // 'IMAGE', 'VIDEO', 'CAROUSEL_ALBUM', 'REELS'
   mediaUrl: string;
   thumbnailUrl: string;
+  permalink: string;   // 인스타그램 피드 URL
   likeCount: number;
   commentsCount: number;
   postedAt: string;    // ISO datetime
@@ -211,9 +212,32 @@ export interface DashInfluencer {
   status: string | null;
   createdTime: string;
   updateTime: string;
+  // 신규 필드
+  creatorCode: string | null;
+  instagramProfile: string | null;
+  type: string | null;
 }
 
-// 14. 인플루언서 포스트 (Apify 수집)
+// 14. 인플루언서 포스트에 태그된 유저
+export interface TaggedUser {
+  fullName: string;
+  id: string;
+  isVerified: boolean;
+  profilePicUrl: string;
+  username: string;
+}
+
+// 15. 인플루언서 포스트 음악 정보
+export interface MusicInfo {
+  artistName: string;
+  songName: string;
+  usesOriginalAudio: boolean;
+  shouldMuteAudio: boolean;
+  shouldMuteAudioReason: string;
+  audioId: string;
+}
+
+// 16. 인플루언서 포스트 (Apify 수집)
 export interface DashInfluencerPost {
   id: string;
   type: string;
@@ -229,9 +253,36 @@ export interface DashInfluencerPost {
   timestamp: string;
   ownerUsername: string;
   ownerId: string;
+  // 신규 필드
+  title?: string;
+  commentsDisabled?: boolean;
+  dimensionsHeight?: number;
+  dimensionsWidth?: number;
+  videoDuration?: number;
+  videoViewCount?: number;
+  firstComment?: string;
+  latestComments?: string[];
+  videoUrl?: string;
+  alt?: string;
+  productType?: string;
+  isCommentsDisabled?: boolean;
+  taggedUsers?: TaggedUser[];
+  musicInfo?: MusicInfo;
+  childPosts?: DashInfluencerPost[];
+  locationName?: string;
+  locationId?: string;
+  isPinned?: boolean;
 }
 
-// 15. 인플루언서 상세 - Apify 데이터
+// 17. 인플루언서 외부 URL
+export interface ExternalUrl {
+  title: string;
+  lynxUrl: string;
+  url: string;
+  linkType: string;
+}
+
+// 18. 인플루언서 상세 - Apify 데이터
 export interface DashInfluencerDetail {
   id: string;
   influencerId: string;
@@ -248,9 +299,23 @@ export interface DashInfluencerDetail {
   profilePicUrlHD: string;
   postsCount: number;
   latestPosts: DashInfluencerPost[];
+  // 신규 필드
+  influencerEntityId: string | null;
+  externalUrls: ExternalUrl[] | null;
+  externalUrl: string | null;
+  externalUrlShimmed: string | null;
+  hasChannel: boolean;
+  highlightReelCount: number;
+  joinedRecently: boolean;
+  privateAccount: boolean;
+  igtvVideoCount: number;
+  latestIgtvVideos: DashInfluencerPost[];
+  fbid: string | null;
+  error: string | null;
+  errorDescription: string | null;
 }
 
-// 16. 인플루언서 상세 조회 응답
+// 19. 인플루언서 상세 조회 응답 (기존 단일 상세 API용)
 export interface DashInfluencerDetailResponse {
   dashInfluencer: {
     id: string;
@@ -264,6 +329,12 @@ export interface DashInfluencerDetailResponse {
     profileImageUrl: string;
     status: string;
   };
+  dashInfluencerDetail: DashInfluencerDetail | null;
+}
+
+// 20. 인플루언서 목록 + 상세 통합 아이템 (신규 통합 API용)
+export interface DashInfluencerWithDetail {
+  dashInfluencer: DashInfluencer;
   dashInfluencerDetail: DashInfluencerDetail | null;
 }
 
