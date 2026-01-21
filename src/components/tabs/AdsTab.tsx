@@ -20,14 +20,16 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
-import type { AdPerformance, DailyAdData, CampaignPerformance, ProfileInsight } from '../../types';
+import type { AdPerformance, DailyAdData, CampaignPerformance, ProfileInsight, CampaignHierarchy } from '../../types';
 
 interface AdsTabProps {
   adData: AdPerformance | null;
   dailyData: DailyAdData[] | null;
   campaignData: CampaignPerformance[];
+  campaignHierarchy: CampaignHierarchy[];  // 캠페인 계층 구조 추가
   profileData: ProfileInsight | null;
   loading: boolean;
 }
@@ -164,11 +166,25 @@ function SourcePieChart({
   );
 }
 
-export function AdsTab({ adData, dailyData, campaignData, profileData, loading }: AdsTabProps) {
+export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, profileData, loading }: AdsTabProps) {
   // 캠페인 테이블 페이지네이션 및 필터
   const [campaignPage, setCampaignPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'completed'>('all');
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());  // 확장된 캠페인 ID
   const ITEMS_PER_PAGE = 5;
+
+  // 캠페인 확장/축소 토글
+  const toggleCampaign = (campaignId: string) => {
+    setExpandedCampaigns(prev => {
+      const next = new Set(prev);
+      if (next.has(campaignId)) {
+        next.delete(campaignId);
+      } else {
+        next.add(campaignId);
+      }
+      return next;
+    });
+  };
 
   // 게시일 기준 정렬 (최신순)
   const sortedCampaigns = [...campaignData].sort((a, b) =>
@@ -272,111 +288,224 @@ export function AdsTab({ adData, dailyData, campaignData, profileData, loading }
         />
       </section>
 
-      {/* 광고 캠페인별 성과 */}
+      {/* 광고 캠페인별 성과 - 계층 구조 */}
       <section className="bg-white rounded-2xl border border-slate-200 p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">광고 캠페인별 성과</h3>
 
-        {/* 상태별 탭 필터 */}
-        <div className="flex gap-2 mb-4">
-          {[
-            { value: 'all', label: '전체' },
-            { value: 'active', label: '진행중' },
-            { value: 'paused', label: '일시정지' },
-            { value: 'completed', label: '완료' },
-          ].map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => {
-                setStatusFilter(tab.value as typeof statusFilter);
-                setCampaignPage(1);
-              }}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                statusFilter === tab.value
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* 캠페인 계층 구조가 있을 때 */}
+        {campaignHierarchy.length > 0 ? (
+          <div className="space-y-3">
+            {campaignHierarchy.map((campaign) => {
+              const isExpanded = expandedCampaigns.has(campaign.campaignId);
+              return (
+                <div key={campaign.campaignId} className="border border-slate-200 rounded-xl overflow-hidden">
+                  {/* 캠페인 헤더 (클릭 가능) */}
+                  <div
+                    onClick={() => toggleCampaign(campaign.campaignId)}
+                    className="flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <ChevronDown
+                        size={18}
+                        className={`text-slate-400 transition-transform ${isExpanded ? '' : '-rotate-90'}`}
+                      />
+                      <div>
+                        <div className="font-medium text-slate-900">{campaign.campaignName}</div>
+                        <div className="text-xs text-slate-500">목표: {campaign.objective || '미설정'}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6 text-sm">
+                      <div className="text-right">
+                        <div className="text-slate-500 text-xs">지출</div>
+                        <div className="font-semibold text-slate-700">₩{campaign.totalSpend.toLocaleString()}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-slate-500 text-xs">도달</div>
+                        <div className="font-semibold text-slate-700">{formatNumber(campaign.totalReach)}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-slate-500 text-xs">클릭</div>
+                        <div className="font-semibold text-slate-700">{formatNumber(campaign.totalClicks)}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-slate-500 text-xs">CTR</div>
+                        <div className="font-semibold text-slate-700">{campaign.ctr.toFixed(2)}%</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-slate-500 text-xs">CPC</div>
+                        <div className="font-semibold text-slate-700">₩{Math.round(campaign.cpc).toLocaleString()}</div>
+                      </div>
+                    </div>
+                  </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200">
-                <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">캠페인명</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">광고 지출</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">ROAS</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">광고 도달</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">광고 클릭</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">CTR</th>
-                <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">CPC</th>
-                <th className="text-center py-3 px-4 text-sm font-medium text-slate-500">상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedCampaigns.map((campaign, index) => (
-                <tr key={campaign.id} className={index < paginatedCampaigns.length - 1 ? 'border-b border-slate-100' : ''}>
-                  <td className="py-4 px-4 text-sm text-slate-700">{campaign.name}</td>
-                  <td className="py-4 px-4 text-sm text-slate-600 text-right">₩{campaign.spend.toLocaleString()}</td>
-                  <td className="py-4 px-4 text-sm font-semibold text-emerald-600 text-right">{campaign.roas}x</td>
-                  <td className="py-4 px-4 text-sm text-slate-600 text-right">{formatNumber(campaign.reach)}</td>
-                  <td className="py-4 px-4 text-sm text-slate-600 text-right">{formatNumber(campaign.clicks)}</td>
-                  <td className="py-4 px-4 text-sm text-slate-600 text-right">{campaign.ctr.toFixed(1)}%</td>
-                  <td className="py-4 px-4 text-sm text-slate-600 text-right">₩{Math.round(campaign.cpc).toLocaleString()}</td>
-                  <td className="py-4 px-4 text-center">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                      campaign.status === 'active'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : campaign.status === 'paused'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-slate-100 text-slate-700'
-                    }`}>
-                      {campaign.status === 'active' ? '진행중' : campaign.status === 'paused' ? '일시정지' : '완료'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {/* 페이지네이션 */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
-            <span className="text-sm text-slate-500">
-              총 {filteredCampaigns.length}개 중 {(campaignPage - 1) * ITEMS_PER_PAGE + 1}-{Math.min(campaignPage * ITEMS_PER_PAGE, filteredCampaigns.length)}개 표시
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCampaignPage(p => Math.max(1, p - 1))}
-                disabled={campaignPage === 1}
-                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  {/* 광고세트 목록 (확장 시) */}
+                  {isExpanded && campaign.adSets.length > 0 && (
+                    <div className="border-t border-slate-200">
+                      {campaign.adSets.map((adSet, idx) => (
+                        <div
+                          key={adSet.id}
+                          className={`flex items-center justify-between p-4 pl-12 bg-white hover:bg-slate-50 ${
+                            idx < campaign.adSets.length - 1 ? 'border-b border-slate-100' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                            <div>
+                              <div className="text-sm font-medium text-slate-700">{adSet.name}</div>
+                              <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <span>예산: {adSet.dailyBudget ? `₩${parseInt(adSet.dailyBudget).toLocaleString()}/일` : adSet.lifetimeBudget ? `₩${parseInt(adSet.lifetimeBudget).toLocaleString()} (총)` : '-'}</span>
+                                <span>•</span>
+                                <span>{adSet.optimizationGoal || '-'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-6 text-sm">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              adSet.status.toUpperCase() === 'ACTIVE'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : adSet.status.toUpperCase() === 'PAUSED'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {adSet.status.toUpperCase() === 'ACTIVE' ? '진행중' : adSet.status.toUpperCase() === 'PAUSED' ? '일시정지' : adSet.status}
+                            </span>
+                            <div className="text-right w-20">
+                              <div className="text-slate-600">₩{adSet.spend.toLocaleString()}</div>
+                            </div>
+                            <div className="text-right w-16">
+                              <div className="text-slate-600">{formatNumber(adSet.reach)}</div>
+                            </div>
+                            <div className="text-right w-16">
+                              <div className="text-slate-600">{formatNumber(adSet.clicks)}</div>
+                            </div>
+                            <div className="text-right w-16">
+                              <div className="text-slate-600">{adSet.ctr.toFixed(2)}%</div>
+                            </div>
+                            <div className="text-right w-20">
+                              <div className="text-slate-600">₩{Math.round(adSet.cpc).toLocaleString()}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 광고세트 없음 */}
+                  {isExpanded && campaign.adSets.length === 0 && (
+                    <div className="p-4 pl-12 text-sm text-slate-500 bg-white border-t border-slate-200">
+                      광고세트가 없습니다.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* 기존 테이블 UI (캠페인 계층 구조가 없을 때) */
+          <>
+            {/* 상태별 탭 필터 */}
+            <div className="flex gap-2 mb-4">
+              {[
+                { value: 'all', label: '전체' },
+                { value: 'active', label: '진행중' },
+                { value: 'paused', label: '일시정지' },
+                { value: 'completed', label: '완료' },
+              ].map((tab) => (
                 <button
-                  key={page}
-                  onClick={() => setCampaignPage(page)}
-                  className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                    campaignPage === page
+                  key={tab.value}
+                  onClick={() => {
+                    setStatusFilter(tab.value as typeof statusFilter);
+                    setCampaignPage(1);
+                  }}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    statusFilter === tab.value
                       ? 'bg-primary-600 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  {page}
+                  {tab.label}
                 </button>
               ))}
-              <button
-                onClick={() => setCampaignPage(p => Math.min(totalPages, p + 1))}
-                disabled={campaignPage === totalPages}
-                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronRight size={16} />
-              </button>
             </div>
-          </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">캠페인명</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">광고 지출</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">ROAS</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">광고 도달</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">광고 클릭</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">CTR</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">CPC</th>
+                    <th className="text-center py-3 px-4 text-sm font-medium text-slate-500">상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedCampaigns.map((campaign, index) => (
+                    <tr key={campaign.id} className={index < paginatedCampaigns.length - 1 ? 'border-b border-slate-100' : ''}>
+                      <td className="py-4 px-4 text-sm text-slate-700">{campaign.name}</td>
+                      <td className="py-4 px-4 text-sm text-slate-600 text-right">₩{campaign.spend.toLocaleString()}</td>
+                      <td className="py-4 px-4 text-sm font-semibold text-emerald-600 text-right">{campaign.roas}x</td>
+                      <td className="py-4 px-4 text-sm text-slate-600 text-right">{formatNumber(campaign.reach)}</td>
+                      <td className="py-4 px-4 text-sm text-slate-600 text-right">{formatNumber(campaign.clicks)}</td>
+                      <td className="py-4 px-4 text-sm text-slate-600 text-right">{campaign.ctr.toFixed(1)}%</td>
+                      <td className="py-4 px-4 text-sm text-slate-600 text-right">₩{Math.round(campaign.cpc).toLocaleString()}</td>
+                      <td className="py-4 px-4 text-center">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                          campaign.status === 'active'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : campaign.status === 'paused'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {campaign.status === 'active' ? '진행중' : campaign.status === 'paused' ? '일시정지' : '완료'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* 페이지네이션 */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+                <span className="text-sm text-slate-500">
+                  총 {filteredCampaigns.length}개 중 {(campaignPage - 1) * ITEMS_PER_PAGE + 1}-{Math.min(campaignPage * ITEMS_PER_PAGE, filteredCampaigns.length)}개 표시
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCampaignPage(p => Math.max(1, p - 1))}
+                    disabled={campaignPage === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setCampaignPage(page)}
+                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                        campaignPage === page
+                          ? 'bg-primary-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setCampaignPage(p => Math.min(totalPages, p + 1))}
+                    disabled={campaignPage === totalPages}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </section>
 

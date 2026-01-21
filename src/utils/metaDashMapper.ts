@@ -7,6 +7,7 @@ import type {
   DashMediaInsight,
   DashAdAccountWithInsights,
   DashAdAccountInsight,
+  DashAdSet,
 } from '../types/metaDash';
 import type {
   ProfileInsight,
@@ -16,6 +17,8 @@ import type {
   AdPerformance,
   DailyAdData,
   CampaignPerformance,
+  CampaignHierarchy,
+  AdSetWithPerformance,
 } from '../types';
 
 // 성장률 계산 헬퍼 함수
@@ -515,4 +518,125 @@ function mapAdStatus(apiStatus: string): 'active' | 'paused' | 'completed' {
   if (s === 'ACTIVE') return 'active';
   if (s === 'PAUSED') return 'paused';
   return 'completed';
+}
+
+// 8. 캠페인 계층 구조 변환 (캠페인 → 광고세트 → 광고 성과 합산)
+export function mapToCampaignHierarchy(
+  accountsWithInsights: DashAdAccountWithInsights[]
+): CampaignHierarchy[] {
+  // 모든 광고세트 추출
+  const allAdSets: DashAdSet[] = accountsWithInsights
+    .flatMap(acc => acc.dashAdSets || []);
+
+  // 모든 광고 추출
+  const allAds = accountsWithInsights.flatMap(acc => acc.dashAdDetailWithInsights || []);
+
+  if (allAdSets.length === 0) {
+    return [];
+  }
+
+  // 광고를 adsetId로 그룹핑하여 성과 합산
+  const adSetPerformanceMap = new Map<string, {
+    spend: number;
+    reach: number;
+    clicks: number;
+    impressions: number;
+  }>();
+
+  for (const ad of allAds) {
+    const adsetId = ad.dashAdDetailEntity.adsetId;
+    const insight = ad.dashAdAccountInsight;
+    const existing = adSetPerformanceMap.get(adsetId) || {
+      spend: 0,
+      reach: 0,
+      clicks: 0,
+      impressions: 0,
+    };
+    adSetPerformanceMap.set(adsetId, {
+      spend: existing.spend + insight.spend,
+      reach: existing.reach + insight.reach,
+      clicks: existing.clicks + insight.clicks,
+      impressions: existing.impressions + insight.impressions,
+    });
+  }
+
+  // 캠페인별로 광고세트 그룹핑
+  const campaignMap = new Map<string, {
+    campaignId: string;
+    campaignName: string;
+    objective: string;
+    adSets: DashAdSet[];
+  }>();
+
+  for (const adSet of allAdSets) {
+    const campaignId = adSet.campaign.campaignId;
+    const existing = campaignMap.get(campaignId);
+
+    if (!existing) {
+      campaignMap.set(campaignId, {
+        campaignId,
+        campaignName: adSet.campaign.name,
+        objective: adSet.campaign.objective,
+        adSets: [adSet],
+      });
+    } else {
+      // 중복 광고세트 제거 (metaAdSetId 기준)
+      const alreadyExists = existing.adSets.some(
+        s => s.metaAdSetId === adSet.metaAdSetId
+      );
+      if (!alreadyExists) {
+        existing.adSets.push(adSet);
+      }
+    }
+  }
+
+  // CampaignHierarchy 배열로 변환
+  return Array.from(campaignMap.values()).map(campaign => {
+    // 광고세트별 성과 매핑
+    const adSetsWithPerformance: AdSetWithPerformance[] = campaign.adSets.map(adSet => {
+      const perf = adSetPerformanceMap.get(adSet.metaAdSetId) || {
+        spend: 0,
+        reach: 0,
+        clicks: 0,
+        impressions: 0,
+      };
+
+      return {
+        id: adSet.id,
+        metaAdSetId: adSet.metaAdSetId,
+        name: adSet.name,
+        status: adSet.status,
+        effectiveStatus: adSet.effectiveStatus,
+        dailyBudget: adSet.dailyBudget,
+        lifetimeBudget: adSet.lifetimeBudget,
+        optimizationGoal: adSet.optimizationGoal,
+        bidStrategy: adSet.bidStrategy,
+        spend: perf.spend,
+        reach: perf.reach,
+        clicks: perf.clicks,
+        impressions: perf.impressions,
+        ctr: perf.impressions > 0 ? (perf.clicks / perf.impressions) * 100 : 0,
+        cpc: perf.clicks > 0 ? perf.spend / perf.clicks : 0,
+      };
+    });
+
+    // 캠페인 전체 성과 합산
+    const totalSpend = adSetsWithPerformance.reduce((sum, s) => sum + s.spend, 0);
+    const totalReach = adSetsWithPerformance.reduce((sum, s) => sum + s.reach, 0);
+    const totalClicks = adSetsWithPerformance.reduce((sum, s) => sum + s.clicks, 0);
+    const totalImpressions = adSetsWithPerformance.reduce((sum, s) => sum + s.impressions, 0);
+
+    return {
+      campaignId: campaign.campaignId,
+      campaignName: campaign.campaignName,
+      objective: campaign.objective,
+      totalSpend,
+      totalReach,
+      totalClicks,
+      totalImpressions,
+      ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+      cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+      adSets: adSetsWithPerformance,
+    };
+  });
 }

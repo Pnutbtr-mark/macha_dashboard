@@ -12,6 +12,7 @@ import type {
   FollowerDemographic,
   ProfileContentItem,
   CampaignPerformance,
+  CampaignHierarchy,
 } from '../types';
 import {
   PROFILE_INSIGHT,
@@ -41,6 +42,7 @@ import {
   mapToAdPerformance,
   mapToDailyAdData,
   mapToCampaignPerformance,
+  mapToCampaignHierarchy,
 } from '../utils/metaDashMapper';
 
 // ============================================
@@ -182,6 +184,7 @@ export function useDailyProfileData(period: string): ApiResponse<DailyProfileDat
 interface AdPerformanceResult {
   adPerformance: AdPerformance | null;
   campaignData: CampaignPerformance[];
+  campaignHierarchy: CampaignHierarchy[];  // 캠페인 계층 구조 추가
 }
 
 export function useAdPerformance(userId?: string): ApiResponse<AdPerformanceResult> {
@@ -196,6 +199,7 @@ export function useAdPerformance(userId?: string): ApiResponse<AdPerformanceResu
       setData({
         adPerformance: AD_PERFORMANCE,
         campaignData: CAMPAIGN_PERFORMANCE_DATA,
+        campaignHierarchy: [],  // 더미 데이터 시 빈 배열
       });
       return;
     }
@@ -210,7 +214,8 @@ export function useAdPerformance(userId?: string): ApiResponse<AdPerformanceResu
       // 데이터 변환
       const adPerformance = mapToAdPerformance(adInsights);
       const campaignData = mapToCampaignPerformance(adInsights);
-      setData({ adPerformance, campaignData });
+      const campaignHierarchy = mapToCampaignHierarchy(adInsights);  // 캠페인 계층 구조
+      setData({ adPerformance, campaignData, campaignHierarchy });
       setError(null);
     } catch (err) {
       console.error('광고 성과 조회 실패:', err);
@@ -219,6 +224,7 @@ export function useAdPerformance(userId?: string): ApiResponse<AdPerformanceResu
       setData({
         adPerformance: AD_PERFORMANCE,
         campaignData: CAMPAIGN_PERFORMANCE_DATA,
+        campaignHierarchy: [],
       });
     } finally {
       setLoading(false);

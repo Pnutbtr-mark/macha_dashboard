@@ -159,10 +159,36 @@ export interface DashAdDetailWithInsight {
   dashAdDetailEntity: DashAdDetailEntity;
 }
 
-// 12. 광고 계정 + 인사이트 응답
+// 12. 광고세트 (신규)
+export interface DashAdSet {
+  id: string;
+  adAccountId: string;
+  dashMemberId: string;
+  time: string;
+  metaAdSetId: string;
+  name: string;
+  status: string;
+  effectiveStatus: string;
+  dailyBudget: string;
+  lifetimeBudget: string;
+  billingEvent: string;
+  optimizationGoal: string;
+  bidStrategy: string;
+  startTime: string;
+  createdTime: string;
+  updatedTime: string;
+  campaign: {
+    campaignId: string;
+    name: string;
+    objective: string;
+  };
+}
+
+// 13. 광고 계정 + 인사이트 응답
 export interface DashAdAccountWithInsights {
   dashAdAccount: DashAdAccount;
   dashAdDetailWithInsights: DashAdDetailWithInsight[];
+  dashAdSets: DashAdSet[];  // 광고세트 목록 추가
 }
 
 // 13. 인플루언서 (목록용)

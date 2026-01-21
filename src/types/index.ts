@@ -203,3 +203,39 @@ export interface ProfileContentItem {
   shares?: number;
   engagementRate: number;
 }
+
+// 광고세트 + 성과 (UI용)
+export interface AdSetWithPerformance {
+  id: string;
+  metaAdSetId: string;
+  name: string;
+  status: string;
+  effectiveStatus: string;
+  dailyBudget: string;
+  lifetimeBudget: string;
+  optimizationGoal: string;
+  bidStrategy: string;
+  // 해당 광고세트의 광고들 성과 합산
+  spend: number;
+  reach: number;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  cpc: number;
+}
+
+// 캠페인 계층 구조 (UI용)
+export interface CampaignHierarchy {
+  campaignId: string;
+  campaignName: string;
+  objective: string;
+  // 캠페인 전체 성과 (합산)
+  totalSpend: number;
+  totalReach: number;
+  totalClicks: number;
+  totalImpressions: number;
+  ctr: number;
+  cpc: number;
+  // 광고세트 목록
+  adSets: AdSetWithPerformance[];
+}
