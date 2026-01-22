@@ -258,6 +258,8 @@ export interface CampaignHierarchy {
   campaignName: string;
   objective: string;
   createdTime: string;  // 캠페인 생성일
+  status: string;       // 메타 캠페인 상태 (ACTIVE, PAUSED 등)
+  effectiveStatus: string;  // 실제 적용 상태
   // 캠페인 전체 성과 (합산)
   totalSpend: number;
   totalReach: number;

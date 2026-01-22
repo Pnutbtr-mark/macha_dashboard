@@ -29,6 +29,11 @@ function calculateGrowth(today: number, yesterday: number): number {
   return parseFloat((((today - yesterday) / yesterday) * 100).toFixed(1));
 }
 
+// 로컬 시간 기준 날짜 문자열 반환 (YYYY-MM-DD)
+function getLocalDateString(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 // 1. 프로필 인사이트 변환
 export function mapToProfileInsight(
   insights: DashMemberInsight[],
@@ -114,13 +119,30 @@ export function mapToDailyProfileData(
     return [];
   }
 
-  // 최근 14일 팔로워 데이터
-  const sortedFollowers = [...followers]
+  // 날짜별로 중복 제거 (Map 사용, 최신 데이터 유지)
+  const dateMap = new Map<string, DashFollower>();
+
+  for (const follower of followers) {
+    const dateStr = follower.time.split('T')[0]; // YYYY-MM-DD
+    const existing = dateMap.get(dateStr);
+
+    if (!existing) {
+      dateMap.set(dateStr, follower);
+    } else {
+      // 같은 날짜면 더 최신 시간의 데이터로 업데이트
+      if (new Date(follower.time) > new Date(existing.time)) {
+        dateMap.set(dateStr, follower);
+      }
+    }
+  }
+
+  // 날짜순 정렬 후 최근 14일만 추출
+  const uniqueFollowers = Array.from(dateMap.values())
     .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
     .slice(-14);
 
-  return sortedFollowers.map(follower => {
-    const dateStr = follower.time.split('T')[0]; // YYYY-MM-DD
+  return uniqueFollowers.map(follower => {
+    const dateStr = follower.time.split('T')[0];
 
     // 해당 날짜의 일별 인사이트
     const dayInsights = insights.filter(
@@ -636,6 +658,8 @@ export function mapToCampaignHierarchy(
       campaignName: campaign.campaignName,
       objective: campaign.objective,
       createdTime: '',  // 기존 API에서는 생성일 정보 없음
+      status: '',       // 기존 API에서는 상태 정보 없음
+      effectiveStatus: '',
       totalSpend,
       totalReach,
       totalClicks,
@@ -653,84 +677,126 @@ export function mapToCampaignHierarchy(
 // ============================================
 
 // 9. 캠페인 상세 응답에서 광고 성과 변환
+// 캠페인 계층 함수(mapToCampaignHierarchyFromCampaignDetail)와 동일한 3단계 중복 제거 적용
 export function mapToAdPerformanceFromCampaignDetail(
   campaignDetails: DashAdCampaignDetailItem[]
 ): AdPerformance {
-  // 모든 광고 인사이트 추출
-  const allInsights: DashAdAccountInsight[] = campaignDetails
-    .flatMap(detail => detail.adDetailResponseObjs || [])
-    .flatMap(adDetailObj => adDetailObj.adSetChildObjs || [])
-    .map(child => child.dashAdAccountInsight)
-    .filter(Boolean);
+  // 실제 오늘/어제 날짜 계산 (로컬 시간 기준)
+  const today = new Date();
+  const todayDate = getLocalDateString(today);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayDate = getLocalDateString(yesterday);
 
-  if (allInsights.length === 0) {
-    return {
-      spend: 0,
-      spendGrowth: 0,
-      roas: 0,
-      roasGrowth: 0,
-      cpc: 0,
-      cpcGrowth: 0,
-      ctr: 0,
-      ctrGrowth: 0,
-      impressions: 0,
-      reach: 0,
-      reachGrowth: 0,
-      clicks: 0,
-      clicksGrowth: 0,
-      conversions: 0,
-      frequency: 1,
-    };
-  }
-
-  // 날짜별 그룹핑
-  const dateMap = new Map<string, DashAdAccountInsight[]>();
-  for (const insight of allInsights) {
-    const dateStr = insight.time.split('T')[0];
-    if (!dateMap.has(dateStr)) {
-      dateMap.set(dateStr, []);
+  // 1. 캠페인 중복 제거 (metaId 기준) - 캠페인 계층 함수와 동일
+  const campaignMap = new Map<string, DashAdCampaignDetailItem>();
+  for (const detail of campaignDetails) {
+    const campaignId = detail.dashAdCampaign.metaId;
+    const existing = campaignMap.get(campaignId);
+    if (!existing) {
+      campaignMap.set(campaignId, detail);
+    } else {
+      // 광고세트 병합
+      const mergedAdSets = [...(existing.adDetailResponseObjs || [])];
+      for (const newAdSet of (detail.adDetailResponseObjs || [])) {
+        const alreadyExists = mergedAdSets.some(
+          s => s.dashAdSet.metaAdSetId === newAdSet.dashAdSet.metaAdSetId
+        );
+        if (!alreadyExists) {
+          mergedAdSets.push(newAdSet);
+        }
+      }
+      campaignMap.set(campaignId, { ...detail, adDetailResponseObjs: mergedAdSets });
     }
-    dateMap.get(dateStr)!.push(insight);
   }
 
-  // 날짜 정렬 (최신 순)
-  const sortedDates = Array.from(dateMap.keys()).sort().reverse();
-  const todayDate = sortedDates[0];
-  const yesterdayDate = sortedDates[1];
+  // 2. 중복 제거된 캠페인에서 인사이트 추출 (광고세트/소재 중복 제거 포함)
+  let todaySpend = 0, todayReach = 0, todayClicks = 0, todayImpressions = 0;
+  let yesterdaySpend = 0, yesterdayReach = 0, yesterdayClicks = 0, yesterdayImpressions = 0;
 
-  // 오늘 합계
-  const todayInsights = dateMap.get(todayDate) || [];
-  const spend = todayInsights.reduce((sum, i) => sum + i.spend, 0);
-  const impressions = todayInsights.reduce((sum, i) => sum + i.impressions, 0);
-  const clicks = todayInsights.reduce((sum, i) => sum + i.clicks, 0);
-  const reach = todayInsights.reduce((sum, i) => sum + i.reach, 0);
-  const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-  const cpc = clicks > 0 ? spend / clicks : 0;
-  const frequency = reach > 0 ? impressions / reach : 1;
+  for (const detail of campaignMap.values()) {
+    const adDetailObjs = detail.adDetailResponseObjs || [];
 
-  // 어제 합계
-  const yesterdayInsights = dateMap.get(yesterdayDate) || [];
-  const yesterdaySpend = yesterdayInsights.reduce((sum, i) => sum + i.spend, 0);
-  const yesterdayImpressions = yesterdayInsights.reduce((sum, i) => sum + i.impressions, 0);
-  const yesterdayClicks = yesterdayInsights.reduce((sum, i) => sum + i.clicks, 0);
-  const yesterdayReach = yesterdayInsights.reduce((sum, i) => sum + i.reach, 0);
+    // 광고세트 중복 제거 (metaAdSetId 기준)
+    const adSetMap = new Map<string, typeof adDetailObjs[0]>();
+    for (const adDetailObj of adDetailObjs) {
+      const metaAdSetId = adDetailObj.dashAdSet.metaAdSetId;
+      const existing = adSetMap.get(metaAdSetId);
+      if (!existing) {
+        adSetMap.set(metaAdSetId, adDetailObj);
+      } else {
+        // 소재 병합
+        const mergedChildObjs = [...(existing.adSetChildObjs || [])];
+        for (const newChild of (adDetailObj.adSetChildObjs || [])) {
+          const alreadyExists = mergedChildObjs.some(
+            c => c.dashAdDetailEntity?.adId === newChild.dashAdDetailEntity?.adId
+          );
+          if (!alreadyExists) {
+            mergedChildObjs.push(newChild);
+          }
+        }
+        adSetMap.set(metaAdSetId, { ...adDetailObj, adSetChildObjs: mergedChildObjs });
+      }
+    }
+
+    // 각 광고세트의 소재에서 오늘/어제 데이터 합산
+    for (const adDetailObj of adSetMap.values()) {
+      const childObjs = adDetailObj.adSetChildObjs || [];
+
+      // 소재 중복 제거 (adId + 날짜 기준 - 같은 adId라도 날짜가 다르면 모두 유지)
+      const adMap = new Map<string, typeof childObjs[0]>();
+      for (const child of childObjs) {
+        const adId = child.dashAdDetailEntity?.adId;
+        const dateStr = child.dashAdAccountInsight?.time?.split('T')[0];
+        const key = `${adId}_${dateStr}`;
+        if (adId && dateStr && !adMap.has(key)) {
+          adMap.set(key, child);
+        }
+      }
+
+      // 중복 제거된 소재의 인사이트 합산
+      for (const child of adMap.values()) {
+        const insight = child.dashAdAccountInsight;
+        if (!insight) continue;
+
+        const insightDate = insight.time.split('T')[0];
+        if (insightDate === todayDate) {
+          todaySpend += insight.spend || 0;
+          todayReach += insight.reach || 0;
+          todayClicks += insight.clicks || 0;
+          todayImpressions += insight.impressions || 0;
+        } else if (insightDate === yesterdayDate) {
+          yesterdaySpend += insight.spend || 0;
+          yesterdayReach += insight.reach || 0;
+          yesterdayClicks += insight.clicks || 0;
+          yesterdayImpressions += insight.impressions || 0;
+        }
+      }
+    }
+  }
+
+  // KPI 계산
+  const ctr = todayImpressions > 0 ? (todayClicks / todayImpressions) * 100 : 0;
+  const cpc = todayClicks > 0 ? todaySpend / todayClicks : 0;
+  const frequency = todayReach > 0 ? todayImpressions / todayReach : 1;
+
   const yesterdayCtr = yesterdayImpressions > 0 ? (yesterdayClicks / yesterdayImpressions) * 100 : 0;
   const yesterdayCpc = yesterdayClicks > 0 ? yesterdaySpend / yesterdayClicks : 0;
 
   return {
-    spend,
-    spendGrowth: calculateGrowth(spend, yesterdaySpend),
+    spend: todaySpend,
+    spendGrowth: calculateGrowth(todaySpend, yesterdaySpend),
     roas: 0,
     roasGrowth: 0,
     cpc,
     cpcGrowth: calculateGrowth(cpc, yesterdayCpc),
     ctr,
     ctrGrowth: calculateGrowth(ctr, yesterdayCtr),
-    impressions,
-    reach,
-    reachGrowth: calculateGrowth(reach, yesterdayReach),
-    clicks,
-    clicksGrowth: calculateGrowth(clicks, yesterdayClicks),
+    impressions: todayImpressions,
+    reach: todayReach,
+    reachGrowth: calculateGrowth(todayReach, yesterdayReach),
+    clicks: todayClicks,
+    clicksGrowth: calculateGrowth(todayClicks, yesterdayClicks),
     conversions: 0,
     frequency,
   };
@@ -790,23 +856,113 @@ export function mapToDailyAdDataFromCampaignDetail(
 export function mapToCampaignHierarchyFromCampaignDetail(
   campaignDetails: DashAdCampaignDetailItem[]
 ): CampaignHierarchy[] {
-  return campaignDetails.map(detail => {
+  // 실제 오늘 날짜 계산 (로컬 시간 기준, KPI 카드와 동일)
+  const today = new Date();
+  const todayStr = getLocalDateString(today);
+
+  // campaignId 기준 중복 제거 (Map 사용)
+  const campaignMap = new Map<string, DashAdCampaignDetailItem>();
+
+  for (const detail of campaignDetails) {
+    // metaId로 중복 제거 (id는 DB 내부 ID라 각 레코드마다 다름)
+    const campaignId = detail.dashAdCampaign.metaId;
+    const existing = campaignMap.get(campaignId);
+
+    if (!existing) {
+      campaignMap.set(campaignId, detail);
+    } else {
+      // 같은 캠페인이면 광고세트를 병합
+      const existingAdSets = existing.adDetailResponseObjs || [];
+      const newAdSets = detail.adDetailResponseObjs || [];
+
+      // 광고세트 병합 (metaAdSetId 기준 중복 제거)
+      const mergedAdSets = [...existingAdSets];
+      for (const newAdSet of newAdSets) {
+        const alreadyExists = mergedAdSets.some(
+          s => s.dashAdSet.metaAdSetId === newAdSet.dashAdSet.metaAdSetId
+        );
+        if (!alreadyExists) {
+          mergedAdSets.push(newAdSet);
+        }
+      }
+
+      campaignMap.set(campaignId, {
+        ...detail,
+        adDetailResponseObjs: mergedAdSets,
+      });
+    }
+  }
+
+  // 중복 제거된 캠페인만 변환
+  return Array.from(campaignMap.values()).map(detail => {
     const campaign = detail.dashAdCampaign;
     const adDetailObjs = detail.adDetailResponseObjs || [];
 
-    // 광고세트별 성과 매핑
-    const adSetsWithPerformance: AdSetWithPerformance[] = adDetailObjs.map(adDetailObj => {
+    // 광고세트 중복 제거 (metaAdSetId 기준)
+    const adSetMap = new Map<string, typeof adDetailObjs[0]>();
+    for (const adDetailObj of adDetailObjs) {
+      const metaAdSetId = adDetailObj.dashAdSet.metaAdSetId;
+      const existing = adSetMap.get(metaAdSetId);
+      if (!existing) {
+        adSetMap.set(metaAdSetId, adDetailObj);
+      } else {
+        // 같은 광고세트면 소재(childObjs) 병합
+        const mergedChildObjs = [...(existing.adSetChildObjs || [])];
+        for (const newChild of (adDetailObj.adSetChildObjs || [])) {
+          const alreadyExists = mergedChildObjs.some(
+            c => c.dashAdDetailEntity?.adId === newChild.dashAdDetailEntity?.adId
+          );
+          if (!alreadyExists) {
+            mergedChildObjs.push(newChild);
+          }
+        }
+        adSetMap.set(metaAdSetId, {
+          ...adDetailObj,
+          adSetChildObjs: mergedChildObjs,
+        });
+      }
+    }
+    const uniqueAdDetailObjs = Array.from(adSetMap.values());
+
+    // 광고세트별 성과 매핑 (중복 제거된 데이터 사용)
+    const adSetsWithPerformance: AdSetWithPerformance[] = uniqueAdDetailObjs.map(adDetailObj => {
       const adSet = adDetailObj.dashAdSet;
       const childObjs = adDetailObj.adSetChildObjs || [];
 
-      // 소재(Ad) 목록 매핑
-      const ads: AdWithPerformance[] = childObjs.map(child => {
+      // 소재 중복 제거 (adId 기준, 오늘 데이터 우선)
+      const adMap = new Map<string, typeof childObjs[0]>();
+      for (const child of childObjs) {
+        const adId = child.dashAdDetailEntity?.adId;
+        if (!adId) continue;
+
+        const existingChild = adMap.get(adId);
+        if (!existingChild) {
+          adMap.set(adId, child);
+        } else {
+          // 기존 데이터가 오늘이 아니고, 새 데이터가 오늘이면 교체
+          const existingDate = existingChild.dashAdAccountInsight?.time?.split('T')[0];
+          const newDate = child.dashAdAccountInsight?.time?.split('T')[0];
+          if (existingDate !== todayStr && newDate === todayStr) {
+            adMap.set(adId, child);
+          }
+        }
+      }
+      const uniqueChildObjs = Array.from(adMap.values());
+
+      // 소재(Ad) 목록 매핑 (중복 제거된 데이터 사용)
+      const ads: AdWithPerformance[] = uniqueChildObjs.map(child => {
         const adDetail = child.dashAdDetailEntity;
         const insight = child.dashAdAccountInsight;
-        const adSpend = insight?.spend || 0;
-        const adReach = insight?.reach || 0;
-        const adClicks = insight?.clicks || 0;
-        const adImpressions = insight?.impressions || 0;
+
+        // 오늘 데이터인지 확인 (KPI 카드와 동일한 기준)
+        const insightDate = insight?.time?.split('T')[0];
+        const isToday = insightDate === todayStr;
+
+        // 오늘 데이터만 사용 (오늘이 아니면 0)
+        const adSpend = isToday ? (insight?.spend || 0) : 0;
+        const adReach = isToday ? (insight?.reach || 0) : 0;
+        const adClicks = isToday ? (insight?.clicks || 0) : 0;
+        const adImpressions = isToday ? (insight?.impressions || 0) : 0;
 
         return {
           id: adDetail?.id || '',
@@ -830,11 +986,23 @@ export function mapToCampaignHierarchyFromCampaignDetail(
         };
       });
 
-      // 해당 광고세트의 모든 광고 성과 합산
-      const totalSpend = childObjs.reduce((sum, c) => sum + (c.dashAdAccountInsight?.spend || 0), 0);
-      const totalReach = childObjs.reduce((sum, c) => sum + (c.dashAdAccountInsight?.reach || 0), 0);
-      const totalClicks = childObjs.reduce((sum, c) => sum + (c.dashAdAccountInsight?.clicks || 0), 0);
-      const totalImpressions = childObjs.reduce((sum, c) => sum + (c.dashAdAccountInsight?.impressions || 0), 0);
+      // 해당 광고세트의 오늘 광고 성과 합산 (중복 제거된 데이터 사용)
+      const totalSpend = uniqueChildObjs.reduce((sum, c) => {
+        const insightDate = c.dashAdAccountInsight?.time?.split('T')[0];
+        return sum + (insightDate === todayStr ? (c.dashAdAccountInsight?.spend || 0) : 0);
+      }, 0);
+      const totalReach = uniqueChildObjs.reduce((sum, c) => {
+        const insightDate = c.dashAdAccountInsight?.time?.split('T')[0];
+        return sum + (insightDate === todayStr ? (c.dashAdAccountInsight?.reach || 0) : 0);
+      }, 0);
+      const totalClicks = uniqueChildObjs.reduce((sum, c) => {
+        const insightDate = c.dashAdAccountInsight?.time?.split('T')[0];
+        return sum + (insightDate === todayStr ? (c.dashAdAccountInsight?.clicks || 0) : 0);
+      }, 0);
+      const totalImpressions = uniqueChildObjs.reduce((sum, c) => {
+        const insightDate = c.dashAdAccountInsight?.time?.split('T')[0];
+        return sum + (insightDate === todayStr ? (c.dashAdAccountInsight?.impressions || 0) : 0);
+      }, 0);
 
       return {
         id: adSet.id,
@@ -868,6 +1036,8 @@ export function mapToCampaignHierarchyFromCampaignDetail(
       campaignName: campaign.name,
       objective: campaign.objective,
       createdTime: campaign.createdTime || campaign.startTime || '',
+      status: campaign.status || '',
+      effectiveStatus: campaign.effectiveStatus || '',
       totalSpend,
       totalReach,
       totalClicks,

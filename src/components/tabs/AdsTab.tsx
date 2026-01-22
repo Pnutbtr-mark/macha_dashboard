@@ -316,7 +316,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
           loading={loading}
         />
         <AdKPICard
-          title="광고 도달"
+          title="총 광고 도달"
           value={formatNumber(adData.reach)}
           change={adData.reachGrowth}
           isPositive={adData.reachGrowth >= 0}
@@ -324,7 +324,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
           loading={loading}
         />
         <AdKPICard
-          title="광고 클릭"
+          title="총 광고 클릭"
           value={formatNumber(adData.clicks)}
           change={adData.clicksGrowth}
           isPositive={adData.clicksGrowth >= 0}
@@ -332,7 +332,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
           loading={loading}
         />
         <AdKPICard
-          title="CTR"
+          title="평균 CTR"
           value={adData.ctr.toFixed(1) + '%'}
           change={adData.ctrGrowth}
           isPositive={adData.ctrGrowth >= 0}
@@ -340,7 +340,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
           loading={loading}
         />
         <AdKPICard
-          title="CPC"
+          title="평균 CPC"
           value={'₩' + Math.round(adData.cpc).toLocaleString()}
           change={adData.cpcGrowth}
           isPositive={adData.cpcGrowth <= 0}

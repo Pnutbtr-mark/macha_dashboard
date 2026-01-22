@@ -75,6 +75,7 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
     end: '2024-12-14',
   });
   const [localSeedingList, setLocalSeedingList] = useState<SeedingItem[]>([]);
+  const [syncing, setSyncing] = useState(false);
 
   // API 데이터 (Custom Hooks)
   const { data: profileData, loading: profileLoading, refetch: refetchProfile, lastUpdated } = useProfileInsight();
@@ -101,47 +102,61 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
 
   // 프로필 인사이트 동기화
   const handleRefreshProfile = useCallback(async () => {
-    console.log('프로필 데이터 동기화 시작...');
+    if (syncing) return; // 중복 클릭 방지
+    setSyncing(true);
 
-    // Sync API 호출 (Meta Dash)
-    if (user?.id) {
-      try {
+    try {
+      console.log('프로필 데이터 동기화 시작...');
+
+      // Sync API 호출 (Meta Dash)
+      if (user?.id) {
         const syncResult = await syncDashMember(user.id);
         console.log('프로필 동기화 결과:', syncResult);
-      } catch (error) {
-        console.error('프로필 동기화 실패:', error);
       }
+
+      // 프로필 관련 데이터 새로고침
+      await Promise.all([
+        refetchProfile(),
+        refetchDailyProfile(),
+        refetchFollowerDemographic(),
+        refetchProfileContent(),
+      ]);
+
+      console.log('프로필 데이터 새로고침 완료');
+    } catch (error) {
+      console.error('프로필 동기화 실패:', error);
+    } finally {
+      setSyncing(false);
     }
-
-    // 프로필 관련 데이터만 새로고침
-    refetchProfile();
-    refetchDailyProfile();
-    refetchFollowerDemographic();
-    refetchProfileContent();
-
-    console.log('프로필 데이터 새로고침 완료');
-  }, [user?.id, refetchProfile, refetchDailyProfile, refetchFollowerDemographic, refetchProfileContent]);
+  }, [syncing, user?.id, refetchProfile, refetchDailyProfile, refetchFollowerDemographic, refetchProfileContent]);
 
   // 광고 성과 동기화
   const handleRefreshAds = useCallback(async () => {
-    console.log('광고 데이터 동기화 시작...');
+    if (syncing) return; // 중복 클릭 방지
+    setSyncing(true);
 
-    // Sync API 호출 (광고 전용)
-    if (user?.id) {
-      try {
+    try {
+      console.log('광고 데이터 동기화 시작...');
+
+      // Sync API 호출 (광고 전용)
+      if (user?.id) {
         const syncResult = await syncDashAd(user.id);
         console.log('광고 동기화 결과:', syncResult);
-      } catch (error) {
-        console.error('광고 동기화 실패:', error);
       }
+
+      // 광고 관련 데이터 새로고침
+      await Promise.all([
+        refetchAd(),
+        refetchDailyAd(),
+      ]);
+
+      console.log('광고 데이터 새로고침 완료');
+    } catch (error) {
+      console.error('광고 동기화 실패:', error);
+    } finally {
+      setSyncing(false);
     }
-
-    // 광고 관련 데이터만 새로고침
-    refetchAd();
-    refetchDailyAd();
-
-    console.log('광고 데이터 새로고침 완료');
-  }, [user?.id, refetchAd, refetchDailyAd]);
+  }, [syncing, user?.id, refetchAd, refetchDailyAd]);
 
   // 탭 설정
   const tabs: { key: TabType; label: string; icon: typeof User }[] = [
@@ -150,6 +165,19 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
     { key: 'campaign', label: '캠페인 관리', icon: Megaphone },
     { key: 'influencers', label: '인플루언서 리스트', icon: User },
   ];
+
+  // 탭 전환 시 데이터 새로고침
+  useEffect(() => {
+    if (activeTab === 'profile') {
+      refetchProfile();
+      refetchDailyProfile();
+      refetchFollowerDemographic();
+      refetchProfileContent();
+    } else if (activeTab === 'ads') {
+      refetchAd();
+      refetchDailyAd();
+    }
+  }, [activeTab, refetchProfile, refetchDailyProfile, refetchFollowerDemographic, refetchProfileContent, refetchAd, refetchDailyAd]);
 
   // 로딩 상태 계산
   const isLoading = {
@@ -275,11 +303,20 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
               {(activeTab === 'profile' || activeTab === 'ads') && (
                 <button
                   onClick={activeTab === 'profile' ? handleRefreshProfile : handleRefreshAds}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  disabled={syncing}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-white text-sm font-medium rounded-lg transition-colors ${
+                    syncing
+                      ? 'bg-primary-400 cursor-not-allowed'
+                      : 'bg-primary-600 hover:bg-primary-700'
+                  }`}
                   title="데이터 동기화"
                 >
-                  <RefreshCw size={14} />
-                  동기화
+                  {syncing ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={14} />
+                  )}
+                  {syncing ? '동기화 중...' : '동기화'}
                 </button>
               )}
             </div>
