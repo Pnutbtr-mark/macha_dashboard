@@ -338,10 +338,10 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
           <AdsTab
             adData={adData?.adPerformance || null}
             dailyData={dailyAdData}
-            campaignList={adData?.campaignList || []}
+            campaignData={adData?.campaignData || []}
+            campaignHierarchy={adData?.campaignHierarchy || []}
             profileData={profileData}
             loading={isLoading.ads}
-            userId={user.id}
           />
         )}
 
