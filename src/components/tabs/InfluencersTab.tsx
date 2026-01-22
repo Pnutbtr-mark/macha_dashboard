@@ -107,8 +107,9 @@ function TableRow({
     : null;
 
   // 최근 활동 (가장 최근 게시물 날짜)
-  const latestPostDate = allPosts.length > 0
-    ? new Date(Math.max(...allPosts.map(p => new Date(p.timestamp).getTime())))
+  const postsWithTimestamp = allPosts.filter(p => p.timestamp);
+  const latestPostDate = postsWithTimestamp.length > 0
+    ? new Date(Math.max(...postsWithTimestamp.map(p => new Date(p.timestamp).getTime())))
     : null;
   const formatDate = (date: Date | null) => {
     if (!date) return '-';
@@ -324,7 +325,7 @@ function InfluencerDetailModal({
   const sortedPosts = [...allPosts].sort((a, b) => {
     if (sortBy === 'popular') return (b.likesCount || 0) - (a.likesCount || 0);
     if (sortBy === 'comments') return (b.commentsCount || 0) - (a.commentsCount || 0);
-    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    return new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime();
   });
 
   // 통계 계산
