@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, Search, Filter, Users, Instagram, Heart, MessageCircle, X, Eye, Send, ChevronUp, ChevronDown } from 'lucide-react';
+import { Loader2, Search, Users, Heart, MessageCircle, X, Eye, Send, ChevronUp, ChevronDown } from 'lucide-react';
 import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
 import type { DashInfluencerWithDetail, DashInfluencerPost } from '../../types/metaDash';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
@@ -13,7 +13,7 @@ const formatNumber = (num: number | null | undefined) => {
 };
 
 // 정렬 타입
-type SortField = 'followerCount' | 'postsCount' | 'avgLikes' | 'avgComments';
+type SortField = 'followerCount' | 'postsCount' | 'avgLikes' | 'avgComments' | 'engagementRate' | 'latestPost';
 type SortDirection = 'asc' | 'desc';
 
 // 테이블 헤더 컴포넌트
@@ -51,9 +51,6 @@ function TableHeader({
             게시물수 <SortIcon field="postsCount" />
           </div>
         </th>
-        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-          릴스 평균 조회수
-        </th>
         <th className={headerClass} onClick={() => onSort('avgLikes')}>
           <div className="flex items-center gap-1">
             평균 좋아요 <SortIcon field="avgLikes" />
@@ -62,6 +59,16 @@ function TableHeader({
         <th className={headerClass} onClick={() => onSort('avgComments')}>
           <div className="flex items-center gap-1">
             평균 댓글 <SortIcon field="avgComments" />
+          </div>
+        </th>
+        <th className={headerClass} onClick={() => onSort('engagementRate')}>
+          <div className="flex items-center gap-1">
+            참여율 <SortIcon field="engagementRate" />
+          </div>
+        </th>
+        <th className={headerClass} onClick={() => onSort('latestPost')}>
+          <div className="flex items-center gap-1">
+            최근 활동 <SortIcon field="latestPost" />
           </div>
         </th>
         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -93,11 +100,26 @@ function TableRow({
     ? Math.round(allPosts.reduce((sum, p) => sum + (p.commentsCount || 0), 0) / allPosts.length)
     : null;
 
-  // 릴스 평균 조회수 계산 (type이 'Video' 또는 'Reel'인 것만)
-  const reelsPosts = allPosts.filter(p => p.type === 'Video' || p.type === 'Reel' || p.productType === 'reels');
-  const avgReelsViews = reelsPosts.length > 0
-    ? Math.round(reelsPosts.reduce((sum, p) => sum + (p.videoViewCount || 0), 0) / reelsPosts.length)
+  // 참여율율 계산 (평균 좋아요+댓글 / 팔로워수 * 100)
+  const followerCount = detail?.followersCount || influencer.followerCount || 0;
+  const engagementRate = followerCount > 0 && avgLikes !== null && avgComments !== null
+    ? (((avgLikes + avgComments) / followerCount) * 100).toFixed(2)
     : null;
+
+  // 최근 활동 (가장 최근 게시물 날짜)
+  const latestPostDate = allPosts.length > 0
+    ? new Date(Math.max(...allPosts.map(p => new Date(p.timestamp).getTime())))
+    : null;
+  const formatDate = (date: Date | null) => {
+    if (!date) return '-';
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return '오늘';
+    if (diffDays === 1) return '어제';
+    if (diffDays < 7) return `${diffDays}일 전`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}주 전`;
+    return `${Math.floor(diffDays / 30)}개월 전`;
+  };
 
   return (
     <tr
@@ -174,11 +196,6 @@ function TableRow({
         {formatNumber(detail?.postsCount)}
       </td>
 
-      {/* 릴스 평균 조회수 */}
-      <td className="px-4 py-4 text-sm text-slate-700">
-        {formatNumber(avgReelsViews)}
-      </td>
-
       {/* 평균 좋아요 */}
       <td className="px-4 py-4 text-sm text-slate-700">
         {formatNumber(avgLikes)}
@@ -187,6 +204,16 @@ function TableRow({
       {/* 평균 댓글 */}
       <td className="px-4 py-4 text-sm text-slate-700">
         {formatNumber(avgComments)}
+      </td>
+
+      {/* 참여율율 */}
+      <td className="px-4 py-4 text-sm text-slate-700">
+        {engagementRate ? `${engagementRate}%` : '-'}
+      </td>
+
+      {/* 최근 활동 */}
+      <td className="px-4 py-4 text-sm text-slate-700">
+        {formatDate(latestPostDate)}
       </td>
 
       {/* 콘텐츠 썸네일 */}
@@ -398,7 +425,7 @@ function InfluencerDetailModal({
 
           {/* 섹션 2: 성과 지표 */}
           <div className="px-6 py-4 border-b border-slate-100">
-            <h3 className="font-semibold text-slate-900 mb-3">크리에이터와 얼마나 잘 맞는지 확인해 보세요</h3>
+            <h3 className="font-semibold text-slate-900 mb-3">인플루언서와 얼마나 잘 맞는지 확인해 보세요</h3>
             <div className="grid grid-cols-2 gap-4">
               {/* 성과 지표 */}
               <div className="bg-slate-50 rounded-xl p-4">
@@ -417,7 +444,7 @@ function InfluencerDetailModal({
                     <div className="font-bold text-slate-900">{formatNumber(avgReelsViews)}회</div>
                   </div>
                   <div>
-                    <div className="text-xs text-slate-500">릴스 평균 인게이지먼트</div>
+                    <div className="text-xs text-slate-500">릴스 평균 참여율</div>
                     <div className="font-bold text-slate-900">{reelsEngagement}%</div>
                   </div>
                 </div>
@@ -552,14 +579,21 @@ export function InfluencersTab() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [followerFilter, setFollowerFilter] = useState<string>('all');
+  const [engagementFilter, setEngagementFilter] = useState<string>('all');
+  const [activityFilter, setActivityFilter] = useState<string>('all');
 
-  // 정렬 상태
-  const [sortField, setSortField] = useState<SortField | null>(null);
+  // 정렬 상태 (기본: 팔로워수 내림차순)
+  const [sortField, setSortField] = useState<SortField | null>('followerCount');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // 모달 상태
   const [selectedItem, setSelectedItem] = useState<DashInfluencerWithDetail | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   // 행 클릭 핸들러
   const handleRowClick = (item: DashInfluencerWithDetail) => {
@@ -601,17 +635,57 @@ export function InfluencersTab() {
     loadInfluencers();
   }, []);
 
+  // 검색/필터 변경 시 페이지 초기화
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, categoryFilter, followerFilter, engagementFilter, activityFilter]);
+
   // 검색 및 필터링
   const filteredInfluencers = influencersWithDetail.filter((item) => {
     const inf = item.dashInfluencer;
+    const detail = item.dashInfluencerDetail;
+    const posts = detail?.latestPosts || [];
+
+    // 검색 필터
     const matchesSearch =
       inf.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (inf.username ?? '').toLowerCase().includes(searchQuery.toLowerCase());
 
+    // 카테고리 필터
     const matchesCategory =
-      categoryFilter === 'all' || inf.category.includes(categoryFilter);
+      categoryFilter === 'all' || (inf.category?.includes(categoryFilter) ?? false);
 
-    return matchesSearch && matchesCategory;
+    // 팔로워수 필터
+    const followerCount = detail?.followersCount || inf.followerCount || 0;
+    let matchesFollower = true;
+    if (followerFilter === 'under1k') matchesFollower = followerCount < 1000;
+    else if (followerFilter === '1k-10k') matchesFollower = followerCount >= 1000 && followerCount < 10000;
+    else if (followerFilter === '10k-50k') matchesFollower = followerCount >= 10000 && followerCount < 50000;
+    else if (followerFilter === '50k-100k') matchesFollower = followerCount >= 50000 && followerCount < 100000;
+    else if (followerFilter === 'over100k') matchesFollower = followerCount >= 100000;
+
+    // 참여율 필터
+    const avgLikes = posts.length > 0 ? posts.reduce((s, p) => s + (p.likesCount || 0), 0) / posts.length : 0;
+    const avgComments = posts.length > 0 ? posts.reduce((s, p) => s + (p.commentsCount || 0), 0) / posts.length : 0;
+    const engagementRate = followerCount > 0 ? ((avgLikes + avgComments) / followerCount) * 100 : 0;
+    let matchesEngagement = true;
+    if (engagementFilter === 'over1') matchesEngagement = engagementRate >= 1;
+    else if (engagementFilter === 'over3') matchesEngagement = engagementRate >= 3;
+    else if (engagementFilter === 'over5') matchesEngagement = engagementRate >= 5;
+    else if (engagementFilter === 'over10') matchesEngagement = engagementRate >= 10;
+
+    // 최근 활동 필터
+    const latestPostTime = posts.length > 0 ? Math.max(...posts.map(p => new Date(p.timestamp).getTime())) : 0;
+    const now = Date.now();
+    const oneWeek = 7 * 24 * 60 * 60 * 1000;
+    const oneMonth = 30 * 24 * 60 * 60 * 1000;
+    const threeMonths = 90 * 24 * 60 * 60 * 1000;
+    let matchesActivity = true;
+    if (activityFilter === 'week') matchesActivity = latestPostTime > 0 && (now - latestPostTime) <= oneWeek;
+    else if (activityFilter === 'month') matchesActivity = latestPostTime > 0 && (now - latestPostTime) <= oneMonth;
+    else if (activityFilter === '3months') matchesActivity = latestPostTime > 0 && (now - latestPostTime) <= threeMonths;
+
+    return matchesSearch && matchesCategory && matchesFollower && matchesEngagement && matchesActivity;
   });
 
   // 정렬
@@ -643,14 +717,38 @@ export function InfluencersTab() {
         aVal = aPosts.length > 0 ? aPosts.reduce((s, p) => s + (p.commentsCount || 0), 0) / aPosts.length : 0;
         bVal = bPosts.length > 0 ? bPosts.reduce((s, p) => s + (p.commentsCount || 0), 0) / bPosts.length : 0;
         break;
+      case 'engagementRate': {
+        const aFollowers = aDetail?.followersCount || a.dashInfluencer.followerCount || 0;
+        const bFollowers = bDetail?.followersCount || b.dashInfluencer.followerCount || 0;
+        const aAvgLikes = aPosts.length > 0 ? aPosts.reduce((s, p) => s + (p.likesCount || 0), 0) / aPosts.length : 0;
+        const bAvgLikes = bPosts.length > 0 ? bPosts.reduce((s, p) => s + (p.likesCount || 0), 0) / bPosts.length : 0;
+        const aAvgComments = aPosts.length > 0 ? aPosts.reduce((s, p) => s + (p.commentsCount || 0), 0) / aPosts.length : 0;
+        const bAvgComments = bPosts.length > 0 ? bPosts.reduce((s, p) => s + (p.commentsCount || 0), 0) / bPosts.length : 0;
+        aVal = aFollowers > 0 ? ((aAvgLikes + aAvgComments) / aFollowers) * 100 : 0;
+        bVal = bFollowers > 0 ? ((bAvgLikes + bAvgComments) / bFollowers) * 100 : 0;
+        break;
+      }
+      case 'latestPost': {
+        const aLatest = aPosts.length > 0 ? Math.max(...aPosts.map(p => new Date(p.timestamp).getTime())) : 0;
+        const bLatest = bPosts.length > 0 ? Math.max(...bPosts.map(p => new Date(p.timestamp).getTime())) : 0;
+        aVal = aLatest;
+        bVal = bLatest;
+        break;
+      }
     }
 
     return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
   });
 
+  // 페이지네이션 계산
+  const totalPages = Math.ceil(sortedInfluencers.length / PAGE_SIZE);
+  const startIdx = (currentPage - 1) * PAGE_SIZE;
+  const endIdx = Math.min(startIdx + PAGE_SIZE, sortedInfluencers.length);
+  const paginatedInfluencers = sortedInfluencers.slice(startIdx, endIdx);
+
   // 카테고리 목록 추출
   const allCategories = Array.from(
-    new Set(influencersWithDetail.flatMap((item) => item.dashInfluencer.category))
+    new Set(influencersWithDetail.flatMap((item) => item.dashInfluencer.category || []))
   );
 
   if (loading) {
@@ -679,22 +777,19 @@ export function InfluencersTab() {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">크리에이터 탐색</h2>
-            <p className="text-sm text-slate-500">자유롭게 크리에이터를 탐색해 보세요.</p>
+            <h2 className="text-xl font-bold text-slate-900">인플루언서 탐색</h2>
+            <p className="text-sm text-slate-500">자유롭게 인플루언서를 탐색해 보세요.</p>
           </div>
           <div className="text-sm text-slate-500">
-            총 {influencersWithDetail.length}명
+            {sortedInfluencers.length > 0
+              ? `${sortedInfluencers.length}명 중 ${startIdx + 1}-${endIdx}`
+              : '0명'}
           </div>
         </div>
 
         {/* 필터 */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 rounded-lg text-sm">
-            <Filter size={14} className="text-slate-400" />
-            <span>필터</span>
-          </div>
-
-          {/* 카테고리 칩 */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 카테고리 */}
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
@@ -706,6 +801,45 @@ export function InfluencersTab() {
                 {category}
               </option>
             ))}
+          </select>
+
+          {/* 팔로워수 */}
+          <select
+            value={followerFilter}
+            onChange={(e) => setFollowerFilter(e.target.value)}
+            className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+          >
+            <option value="all">전체 팔로워</option>
+            <option value="under1k">1K 미만</option>
+            <option value="1k-10k">1K - 10K</option>
+            <option value="10k-50k">10K - 50K</option>
+            <option value="50k-100k">50K - 100K</option>
+            <option value="over100k">100K 이상</option>
+          </select>
+
+          {/* 참여율 */}
+          <select
+            value={engagementFilter}
+            onChange={(e) => setEngagementFilter(e.target.value)}
+            className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+          >
+            <option value="all">전체 참여율</option>
+            <option value="over1">1% 이상</option>
+            <option value="over3">3% 이상</option>
+            <option value="over5">5% 이상</option>
+            <option value="over10">10% 이상</option>
+          </select>
+
+          {/* 최근 활동 */}
+          <select
+            value={activityFilter}
+            onChange={(e) => setActivityFilter(e.target.value)}
+            className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+          >
+            <option value="all">전체 활동</option>
+            <option value="week">1주 이내</option>
+            <option value="month">1달 이내</option>
+            <option value="3months">3달 이내</option>
           </select>
 
           {/* 검색 */}
@@ -721,10 +855,16 @@ export function InfluencersTab() {
           </div>
 
           {/* 초기화 */}
-          {(searchQuery || categoryFilter !== 'all') && (
+          {(searchQuery || categoryFilter !== 'all' || followerFilter !== 'all' || engagementFilter !== 'all' || activityFilter !== 'all') && (
             <button
-              onClick={() => { setSearchQuery(''); setCategoryFilter('all'); }}
-              className="text-sm text-slate-500 hover:text-slate-700"
+              onClick={() => {
+                setSearchQuery('');
+                setCategoryFilter('all');
+                setFollowerFilter('all');
+                setEngagementFilter('all');
+                setActivityFilter('all');
+              }}
+              className="px-3 py-1.5 text-sm text-orange-500 hover:text-orange-600 font-medium"
             >
               초기화
             </button>
@@ -743,7 +883,7 @@ export function InfluencersTab() {
                 onSort={handleSort}
               />
               <tbody>
-                {sortedInfluencers.map((item) => (
+                {paginatedInfluencers.map((item) => (
                   <TableRow
                     key={item.dashInfluencer.id}
                     item={item}
@@ -758,6 +898,53 @@ export function InfluencersTab() {
             <Users size={48} className="mx-auto text-slate-300 mb-3" />
             <div className="text-lg font-semibold text-slate-700 mb-1">인플루언서가 없습니다</div>
             <div className="text-sm text-slate-500">검색 조건을 변경해보세요</div>
+          </div>
+        )}
+
+        {/* 페이지네이션 */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 py-4 border-t border-slate-100">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              이전
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => {
+                if (totalPages <= 7) return true;
+                if (page === 1 || page === totalPages) return true;
+                if (Math.abs(page - currentPage) <= 2) return true;
+                return false;
+              })
+              .map((page, idx, arr) => {
+                const showEllipsis = idx > 0 && page - arr[idx - 1] > 1;
+                return (
+                  <span key={page} className="flex items-center gap-2">
+                    {showEllipsis && <span className="text-slate-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                        currentPage === page
+                          ? 'bg-orange-500 text-white'
+                          : 'border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  </span>
+                );
+              })}
+
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              다음
+            </button>
           </div>
         )}
       </div>
