@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, Search, Users, Instagram, Heart, MessageCircle, X, Eye, Send, ChevronUp, ChevronDown, Calendar, Play } from 'lucide-react';
+import { Loader2, Search, Users, Instagram, Heart, MessageCircle, X, Eye, ExternalLink, ChevronUp, ChevronDown, Calendar, Play } from 'lucide-react';
 import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
 import type { DashInfluencerWithDetail, DashInfluencerPost } from '../../types/metaDash';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
@@ -180,7 +180,7 @@ function TableRow({
                 onClick={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1 px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded-md transition-colors"
               >
-                <Send size={12} />
+                <ExternalLink size={12} />
               </a>
             </div>
           </div>
@@ -427,8 +427,8 @@ function InfluencerDetailModal({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                 >
-                  <Send size={16} />
-                  <span>제안하기</span>
+                  <ExternalLink size={16} />
+                  <span>프로필 바로가기</span>
                 </a>
               </div>
             </div>
