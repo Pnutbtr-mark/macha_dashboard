@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
+import { formatNumber, formatCurrency } from '../../utils/formatters';
 import type { AdPerformance, DailyAdData, CampaignPerformance, ProfileInsight, CampaignHierarchy } from '../../types';
 
 interface AdsTabProps {
@@ -34,19 +35,6 @@ interface AdsTabProps {
   profileData: ProfileInsight | null;
   loading: boolean;
 }
-
-const formatNumber = (num: number): string => {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-  return num.toLocaleString();
-};
-
-const formatCurrency = (num: number): string => {
-  if (num >= 100000000) return '₩' + (num / 100000000).toFixed(1) + '억';
-  if (num >= 10000000) return '₩' + (num / 10000).toFixed(0) + '만';
-  if (num >= 10000) return '₩' + (num / 10000).toFixed(0) + '만';
-  return '₩' + num.toLocaleString();
-};
 
 // 광고 AI 분석 데이터
 const adAIAnalysis = {

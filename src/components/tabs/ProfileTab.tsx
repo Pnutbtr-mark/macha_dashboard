@@ -13,6 +13,7 @@ import {
 import { TrendingUp, TrendingDown, Play, Image, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
+import { formatNumber } from '../../utils/formatters';
 import type { ProfileInsight, DailyProfileData, FollowerDemographic, ProfileContentItem } from '../../types';
 
 interface ProfileTabProps {
@@ -22,10 +23,6 @@ interface ProfileTabProps {
   contentData: ProfileContentItem[] | null;
   loading: boolean;
 }
-
-const formatNumber = (num: number): string => {
-  return num.toLocaleString();
-};
 
 // 프로필 AI 분석 데이터
 const profileAIAnalysis = {

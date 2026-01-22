@@ -3,14 +3,12 @@ import { Loader2, Search, Users, Instagram, Heart, MessageCircle, X, Eye, Extern
 import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
 import type { DashInfluencerWithDetail, DashInfluencerPost } from '../../types/metaDash';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
+import { formatNumber as formatNumberBase } from '../../utils/formatters';
 
-// 숫자 포맷팅 (null 처리 포함)
-const formatNumber = (num: number | null | undefined) => {
+// 숫자 포맷팅 (null/undefined 처리 포함 래퍼)
+const formatNumber = (num: number | null | undefined): string => {
   if (num == null) return '-';
-  if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-  return num.toLocaleString();
+  return formatNumberBase(num);
 };
 
 // 정렬 타입

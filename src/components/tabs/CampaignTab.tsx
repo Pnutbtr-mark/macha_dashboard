@@ -30,6 +30,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
+import { formatNumber, formatCurrency, formatDateTime } from '../../utils/formatters';
 import { fetchCampaigns, fetchCampaignResults, syncCampaignData, type NotionCampaign, type CampaignResultDto } from '../../services/notionApi';
 import type {
   Influencer,
@@ -47,25 +48,6 @@ interface CampaignTabProps {
   aiAnalysis: AIAnalysis | null;
   loading: boolean;
 }
-
-const formatNumber = (num: number): string => {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-  return num.toLocaleString();
-};
-
-const formatCurrency = (num: number): string => {
-  if (num >= 100000000) return (num / 100000000).toFixed(1) + '억';
-  if (num >= 10000) return (num / 10000).toFixed(0) + '만';
-  return num.toLocaleString() + '원';
-};
-
-// 날짜 포맷팅 (2026-01-31T15:00:00 -> 2026-01-31 15:00)
-const formatDateTime = (dateStr: string): string => {
-  if (!dateStr) return '-';
-  // T를 공백으로 바꾸고 초 부분 제거
-  return dateStr.replace('T', ' ').slice(0, 16);
-};
 
 // 캠페인 목록 타입 (Notion 데이터와 호환)
 interface CampaignListItem {
