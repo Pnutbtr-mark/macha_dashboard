@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, Play, Image, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
+import { getProxiedImageUrl } from '../../utils/imageProxy';
 import type { ProfileInsight, DailyProfileData, FollowerDemographic, ProfileContentItem } from '../../types';
 
 interface ProfileTabProps {
@@ -473,13 +474,24 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
             </thead>
             <tbody>
               {paginatedContent.map((item, index) => (
-                <tr key={item.id} className={index < paginatedContent.length - 1 ? 'border-b border-slate-100' : ''}>
+                <tr
+                  key={item.id}
+                  onClick={() => {
+                    if ('permalink' in item && item.permalink) {
+                      window.open(item.permalink, '_blank', 'noopener,noreferrer');
+                    }
+                  }}
+                  className={`cursor-pointer hover:bg-slate-50 transition-colors ${
+                    index < paginatedContent.length - 1 ? 'border-b border-slate-100' : ''
+                  }`}
+                >
                   {/* 썸네일 */}
                   <td className="py-4 px-4">
                     {'thumbnailUrl' in item && item.thumbnailUrl ? (
                       <img
-                        src={item.thumbnailUrl}
+                        src={getProxiedImageUrl(item.thumbnailUrl)}
                         alt="썸네일"
+                        referrerPolicy="no-referrer"
                         className="w-12 h-12 rounded-lg object-cover"
                         onError={(e) => {
                           const target = e.currentTarget;

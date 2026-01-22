@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getProxiedImageUrl } from '../../utils/imageProxy';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -170,8 +171,9 @@ function SeedingManagement({ seedingList }: { seedingList: SeedingItem[] }) {
                   <div className="flex items-center gap-2">
                     {item.influencer.thumbnail && item.influencer.thumbnail !== 'https://via.placeholder.com/100' ? (
                       <img
-                        src={item.influencer.thumbnail}
+                        src={getProxiedImageUrl(item.influencer.thumbnail)}
                         alt={item.influencer.name}
+                        referrerPolicy="no-referrer"
                         className="w-8 h-8 rounded-full object-cover bg-slate-100"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;

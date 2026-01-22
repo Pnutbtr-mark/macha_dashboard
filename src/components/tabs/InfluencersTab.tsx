@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Loader2, Search, Filter, Users, Instagram, Heart, MessageCircle, X, Eye, Send, ChevronUp, ChevronDown } from 'lucide-react';
 import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
 import type { DashInfluencerWithDetail, DashInfluencerPost } from '../../types/metaDash';
+import { getProxiedImageUrl } from '../../utils/imageProxy';
 
 // 숫자 포맷팅 (null 처리 포함)
 const formatNumber = (num: number | null | undefined) => {
@@ -111,7 +112,7 @@ function TableRow({
             {(detail?.profilePicUrl || influencer.profileImageUrl) ? (
               <>
                 <img
-                  src={detail?.profilePicUrl || influencer.profileImageUrl || ''}
+                  src={getProxiedImageUrl(detail?.profilePicUrl || influencer.profileImageUrl)}
                   alt={influencer.name}
                   referrerPolicy="no-referrer"
                   className="w-12 h-12 rounded-full object-cover bg-slate-100"
@@ -194,7 +195,7 @@ function TableRow({
           {latestPosts.map((post, idx) => (
             <img
               key={post.id || idx}
-              src={post.displayUrl || post.images?.[0]}
+              src={getProxiedImageUrl(post.displayUrl || post.images?.[0])}
               alt={`Post ${idx + 1}`}
               referrerPolicy="no-referrer"
               className="w-16 h-16 object-cover rounded-lg bg-slate-200"
@@ -343,7 +344,7 @@ function InfluencerDetailModal({
               <div className="flex-shrink-0">
                 {detail?.profilePicUrl ? (
                   <img
-                    src={detail.profilePicUrl}
+                    src={getProxiedImageUrl(detail.profilePicUrl)}
                     alt={influencer.name}
                     referrerPolicy="no-referrer"
                     className="w-20 h-20 rounded-full object-cover bg-slate-100"
@@ -500,7 +501,7 @@ function InfluencerDetailModal({
                   className="group relative aspect-square"
                 >
                   <img
-                    src={post.displayUrl || post.images?.[0]}
+                    src={getProxiedImageUrl(post.displayUrl || post.images?.[0])}
                     alt={`Post ${idx + 1}`}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover rounded-lg bg-slate-200"
