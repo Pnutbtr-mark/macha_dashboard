@@ -22,12 +22,7 @@ import type {
   AdSetWithPerformance,
   AdWithPerformance,
 } from '../types';
-
-// 성장률 계산 헬퍼 함수
-function calculateGrowth(today: number, yesterday: number): number {
-  if (yesterday === 0) return 0;
-  return parseFloat((((today - yesterday) / yesterday) * 100).toFixed(1));
-}
+import { calculateCtr, calculateCpc, calculateFrequency, calculateGrowth } from './metrics';
 
 // 로컬 시간 기준 날짜 문자열 반환 (YYYY-MM-DD)
 function getLocalDateString(date: Date): string {
@@ -408,9 +403,9 @@ export function mapToAdPerformance(
   const impressions = todayInsights.reduce((sum, i) => sum + i.impressions, 0);
   const clicks = todayInsights.reduce((sum, i) => sum + i.clicks, 0);
   const reach = todayInsights.reduce((sum, i) => sum + i.reach, 0);
-  const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-  const cpc = clicks > 0 ? spend / clicks : 0;
-  const frequency = reach > 0 ? impressions / reach : 1;
+  const ctr = calculateCtr(clicks, impressions);
+  const cpc = calculateCpc(spend, clicks);
+  const frequency = calculateFrequency(impressions, reach);
 
   // 어제 합계
   const yesterdayInsights = dateMap.get(yesterdayDate) || [];
@@ -418,8 +413,8 @@ export function mapToAdPerformance(
   const yesterdayImpressions = yesterdayInsights.reduce((sum, i) => sum + i.impressions, 0);
   const yesterdayClicks = yesterdayInsights.reduce((sum, i) => sum + i.clicks, 0);
   const yesterdayReach = yesterdayInsights.reduce((sum, i) => sum + i.reach, 0);
-  const yesterdayCtr = yesterdayImpressions > 0 ? (yesterdayClicks / yesterdayImpressions) * 100 : 0;
-  const yesterdayCpc = yesterdayClicks > 0 ? yesterdaySpend / yesterdayClicks : 0;
+  const yesterdayCtr = calculateCtr(yesterdayClicks, yesterdayImpressions);
+  const yesterdayCpc = calculateCpc(yesterdaySpend, yesterdayClicks);
 
   return {
     spend,
@@ -483,8 +478,8 @@ export function mapToDailyAdData(
       clicks: data.clicks,
       impressions: data.impressions,
       conversions: 0, // API에서 제공하지 않음
-      ctr: data.impressions > 0 ? (data.clicks / data.impressions) * 100 : 0,
-      cpc: data.clicks > 0 ? data.spend / data.clicks : 0,
+      ctr: calculateCtr(data.clicks, data.impressions),
+      cpc: calculateCpc(data.spend, data.clicks),
     }));
 }
 
@@ -529,8 +524,8 @@ export function mapToCampaignPerformance(
       roas: 0, // API 미제공
       reach: totalReach,
       clicks: totalClicks,
-      ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-      cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+      ctr: calculateCtr(totalClicks, totalImpressions),
+      cpc: calculateCpc(totalSpend, totalClicks),
       status: mapAdStatus(detail.status),
       startDate: earliestTime,
     };
@@ -640,8 +635,8 @@ export function mapToCampaignHierarchy(
         reach: perf.reach,
         clicks: perf.clicks,
         impressions: perf.impressions,
-        ctr: perf.impressions > 0 ? (perf.clicks / perf.impressions) * 100 : 0,
-        cpc: perf.clicks > 0 ? perf.spend / perf.clicks : 0,
+        ctr: calculateCtr(perf.clicks, perf.impressions),
+        cpc: calculateCpc(perf.spend, perf.clicks),
         roas: 0, // API에서 전환 가치 미제공
         ads: [],  // 기존 API에서는 소재 데이터 없음
       };
@@ -664,8 +659,8 @@ export function mapToCampaignHierarchy(
       totalReach,
       totalClicks,
       totalImpressions,
-      ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-      cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+      ctr: calculateCtr(totalClicks, totalImpressions),
+      cpc: calculateCpc(totalSpend, totalClicks),
       roas: 0, // API에서 전환 가치 미제공
       adSets: adSetsWithPerformance,
     };
@@ -776,12 +771,12 @@ export function mapToAdPerformanceFromCampaignDetail(
   }
 
   // KPI 계산
-  const ctr = todayImpressions > 0 ? (todayClicks / todayImpressions) * 100 : 0;
-  const cpc = todayClicks > 0 ? todaySpend / todayClicks : 0;
-  const frequency = todayReach > 0 ? todayImpressions / todayReach : 1;
+  const ctr = calculateCtr(todayClicks, todayImpressions);
+  const cpc = calculateCpc(todaySpend, todayClicks);
+  const frequency = calculateFrequency(todayImpressions, todayReach);
 
-  const yesterdayCtr = yesterdayImpressions > 0 ? (yesterdayClicks / yesterdayImpressions) * 100 : 0;
-  const yesterdayCpc = yesterdayClicks > 0 ? yesterdaySpend / yesterdayClicks : 0;
+  const yesterdayCtr = calculateCtr(yesterdayClicks, yesterdayImpressions);
+  const yesterdayCpc = calculateCpc(yesterdaySpend, yesterdayClicks);
 
   return {
     spend: todaySpend,
@@ -847,8 +842,8 @@ export function mapToDailyAdDataFromCampaignDetail(
       clicks: data.clicks,
       impressions: data.impressions,
       conversions: 0,
-      ctr: data.impressions > 0 ? (data.clicks / data.impressions) * 100 : 0,
-      cpc: data.clicks > 0 ? data.spend / data.clicks : 0,
+      ctr: calculateCtr(data.clicks, data.impressions),
+      cpc: calculateCpc(data.spend, data.clicks),
     }));
 }
 
@@ -980,8 +975,8 @@ export function mapToCampaignHierarchyFromCampaignDetail(
           reach: adReach,
           clicks: adClicks,
           impressions: adImpressions,
-          ctr: adImpressions > 0 ? (adClicks / adImpressions) * 100 : 0,
-          cpc: adClicks > 0 ? adSpend / adClicks : 0,
+          ctr: calculateCtr(adClicks, adImpressions),
+          cpc: calculateCpc(adSpend, adClicks),
           roas: 0, // API에서 전환 가치 미제공
         };
       });
@@ -1018,8 +1013,8 @@ export function mapToCampaignHierarchyFromCampaignDetail(
         reach: totalReach,
         clicks: totalClicks,
         impressions: totalImpressions,
-        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-        cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+        ctr: calculateCtr(totalClicks, totalImpressions),
+        cpc: calculateCpc(totalSpend, totalClicks),
         roas: 0, // API에서 전환 가치 미제공
         ads,
       };
@@ -1042,8 +1037,8 @@ export function mapToCampaignHierarchyFromCampaignDetail(
       totalReach,
       totalClicks,
       totalImpressions,
-      ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-      cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+      ctr: calculateCtr(totalClicks, totalImpressions),
+      cpc: calculateCpc(totalSpend, totalClicks),
       roas: 0, // API에서 전환 가치 미제공
       adSets: adSetsWithPerformance,
     };
@@ -1093,8 +1088,8 @@ export function mapToCampaignPerformanceFromCampaignDetail(
       roas: 0,
       reach: totalReach,
       clicks: totalClicks,
-      ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-      cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+      ctr: calculateCtr(totalClicks, totalImpressions),
+      cpc: calculateCpc(totalSpend, totalClicks),
       status: mapAdStatus(detail.status),
       startDate: earliestTime,
     };
