@@ -4,7 +4,6 @@ import type {
   DashFollower,
   DashFollowerInsight,
   DashMediaResponse,
-  DashMediaInsight,
   DashAdAccountWithInsights,
   DashAdAccountInsight,
   DashAdSet,
@@ -25,6 +24,7 @@ import type {
 import { calculateCtr, calculateCpc, calculateFrequency, calculateGrowth } from './metrics';
 import { getLocalDateString, formatDateToMMDD } from './dates';
 import { getCountryName, mapMediaType, mapAdStatus } from './converters';
+import { getLatestInsightTime, findMetricValue, findInsightValue } from './extractors';
 
 // 1. 프로필 인사이트 변환
 export function mapToProfileInsight(
@@ -218,15 +218,6 @@ export function mapToContentItems(
   });
 }
 
-// 가장 최신 인사이트 시간 찾기
-function getLatestInsightTime(insights: DashMediaInsight[]): string {
-  if (insights.length === 0) return '';
-  return insights
-    .map(i => i.time)
-    .sort()
-    .reverse()[0];
-}
-
 // 4. 팔로워 인구통계 변환
 export function mapToFollowerDemographic(
   insights: DashFollowerInsight[]
@@ -289,23 +280,6 @@ export function mapToFollowerDemographic(
     })),
     total: Math.max(genderTotal, ageTotal, countryTotal),
   };
-}
-
-// === 헬퍼 함수들 ===
-
-function findMetricValue(
-  insights: DashMemberInsight[],
-  metricName: string
-): number | undefined {
-  return insights.find(i => i.metricName === metricName)?.value;
-}
-
-function findInsightValue(
-  insights: DashMediaInsight[],
-  metricName: string
-): number | undefined {
-  // DashMediaInsight의 'name' 필드가 실제 metricName
-  return insights.find(i => i.name === metricName)?.value;
 }
 
 // 5. 광고 성과 변환 (모든 광고 계정의 인사이트 합산)
