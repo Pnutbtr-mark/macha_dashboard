@@ -283,8 +283,8 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Toolbar - 캠페인 탭에서는 숨김 */}
-        {activeTab !== 'campaign' && (
+        {/* Toolbar - 캠페인/인플루언서 탭에서는 숨김 */}
+        {activeTab !== 'campaign' && activeTab !== 'influencers' && (
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <PeriodFilter
               period={period}
