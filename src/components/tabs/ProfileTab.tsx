@@ -13,7 +13,7 @@ import {
 import { TrendingUp, TrendingDown, Play, Image, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
-import { formatNumber } from '../../utils/formatters';
+import { formatNumber, formatPercent } from '../../utils/formatters';
 import type { ProfileInsight, DailyProfileData, FollowerDemographic, ProfileContentItem } from '../../types';
 
 interface ProfileTabProps {
@@ -105,7 +105,7 @@ function ProfileKPICard({
       </div>
       <div className={`flex items-center gap-1 text-xs font-medium ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
         {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-        <span>전일 대비 {change > 0 ? '+' : ''}{change.toFixed(1)}%</span>
+        <span>전일 대비 {change > 0 ? '+' : ''}{formatPercent(change)}</span>
       </div>
     </div>
   );
@@ -179,7 +179,7 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
             />
             <ProfileKPICard
               title="참여율"
-              value={profileData.engagementRate.toFixed(1) + '%'}
+              value={formatPercent(profileData.engagementRate)}
               change={profileData.engagementRateGrowth}
               isPositive={profileData.engagementRateGrowth >= 0}
               metricKey="engagementRate"
@@ -205,7 +205,7 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
           <div className="text-2xl font-bold text-slate-900">{profileActionsData.profileVisits.toLocaleString()}</div>
           <div className={`flex items-center gap-1 text-xs font-medium ${profileData.profileViewsGrowth >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
             {profileData.profileViewsGrowth >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            <span>전일 대비 {profileData.profileViewsGrowth > 0 ? '+' : ''}{profileData.profileViewsGrowth.toFixed(1)}%</span>
+            <span>전일 대비 {profileData.profileViewsGrowth > 0 ? '+' : ''}{formatPercent(profileData.profileViewsGrowth)}</span>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow h-[100px] flex flex-col justify-between">
@@ -216,7 +216,7 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
           <div className="text-2xl font-bold text-slate-900">{profileActionsData.websiteClicks.toLocaleString()}</div>
           <div className={`flex items-center gap-1 text-xs font-medium ${profileData.websiteClicksGrowth >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
             {profileData.websiteClicksGrowth >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            <span>전일 대비 {profileData.websiteClicksGrowth > 0 ? '+' : ''}{profileData.websiteClicksGrowth.toFixed(1)}%</span>
+            <span>전일 대비 {profileData.websiteClicksGrowth > 0 ? '+' : ''}{formatPercent(profileData.websiteClicksGrowth)}</span>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow h-[100px] flex flex-col justify-between">
@@ -225,7 +225,7 @@ export function ProfileTab({ profileData, dailyData, followerDemographic, conten
             <InfoTooltip metricKey="clickRate" />
           </div>
           <div className="text-2xl font-bold text-slate-900">
-            {profileActionsData.profileVisits > 0 ? ((profileActionsData.websiteClicks / profileActionsData.profileVisits) * 100).toFixed(1) : 0}%
+            {profileActionsData.profileVisits > 0 ? formatPercent((profileActionsData.websiteClicks / profileActionsData.profileVisits) * 100) : '0%'}
           </div>
           <div className="flex items-center gap-1 text-xs font-medium text-emerald-600">
             <TrendingUp size={12} />

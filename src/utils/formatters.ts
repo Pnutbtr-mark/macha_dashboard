@@ -33,3 +33,23 @@ export const formatDateTime = (dateStr: string): string => {
   // T를 공백으로 바꾸고 초(:ss) 부분 제거
   return dateStr.replace('T', ' ').slice(0, 16);
 };
+
+/**
+ * 백분율 포맷팅
+ * @param value - 백분율 값
+ * @param decimals - 소수점 자릿수 (기본값: 1)
+ * @returns 백분율 문자열 (예: "4.5%")
+ */
+export const formatPercent = (value: number, decimals: number = 1): string => {
+  return value.toFixed(decimals) + '%';
+};
+
+/**
+ * ROAS 포맷팅
+ * @param value - ROAS 값
+ * @param decimals - 소수점 자릿수 (기본값: 1)
+ * @returns ROAS 문자열 (예: "4.5x")
+ */
+export const formatRoas = (value: number, decimals: number = 1): string => {
+  return value.toFixed(decimals) + 'x';
+};

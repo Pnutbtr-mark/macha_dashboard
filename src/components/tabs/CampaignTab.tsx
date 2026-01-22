@@ -30,7 +30,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
-import { formatNumber, formatCurrency, formatDateTime } from '../../utils/formatters';
+import { formatNumber, formatCurrency, formatDateTime, formatPercent } from '../../utils/formatters';
 import { fetchCampaigns, fetchCampaignResults, syncCampaignData, type NotionCampaign, type CampaignResultDto } from '../../services/notionApi';
 import type {
   Influencer,
@@ -263,7 +263,7 @@ function ContentCard({ content }: { content: ContentItem }) {
                   <TrendingUp size={14} />
                 </div>
                 <div className="text-lg font-bold text-slate-800">
-                  {(content.views ?? 0) > 0 ? ((content.likes / (content.views ?? 1)) * 100).toFixed(1) : 0}%
+                  {(content.views ?? 0) > 0 ? formatPercent((content.likes / (content.views ?? 1)) * 100) : '0%'}
                 </div>
                 <div className="text-xs text-slate-400">참여율</div>
               </div>
@@ -423,7 +423,7 @@ function CampaignKPICard({
       </div>
       <div className={`flex items-center gap-1 text-xs font-medium ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
         {isPositive ? <TrendingUp size={12} /> : <TrendingUp size={12} className="rotate-180" />}
-        <span>전월 대비 {change > 0 ? '+' : ''}{change.toFixed(1)}%</span>
+        <span>전월 대비 {change > 0 ? '+' : ''}{formatPercent(change)}</span>
       </div>
     </div>
   );

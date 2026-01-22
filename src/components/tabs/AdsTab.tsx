@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
-import { formatNumber, formatCurrency } from '../../utils/formatters';
+import { formatNumber, formatCurrency, formatPercent, formatRoas } from '../../utils/formatters';
 import type { AdPerformance, DailyAdData, CampaignPerformance, ProfileInsight, CampaignHierarchy } from '../../types';
 
 interface AdsTabProps {
@@ -90,7 +90,7 @@ function AdKPICard({
       </div>
       <div className={`flex items-center gap-1 text-xs font-medium ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
         {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-        <span>전일 대비 {change > 0 ? '+' : ''}{change.toFixed(1)}%</span>
+        <span>전일 대비 {change > 0 ? '+' : ''}{formatPercent(change)}</span>
       </div>
     </div>
   );
@@ -297,7 +297,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
         />
         <AdKPICard
           title="ROAS"
-          value={adData.roas.toFixed(1) + 'x'}
+          value={formatRoas(adData.roas)}
           change={adData.roasGrowth}
           isPositive={adData.roasGrowth >= 0}
           metricKey="roas"
@@ -321,7 +321,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
         />
         <AdKPICard
           title="평균 CTR"
-          value={adData.ctr.toFixed(1) + '%'}
+          value={formatPercent(adData.ctr)}
           change={adData.ctrGrowth}
           isPositive={adData.ctrGrowth >= 0}
           metricKey="ctr"
@@ -432,7 +432,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
                         </div>
                         <div className="bg-white rounded-lg px-3 py-2 text-center">
                           <div className="text-xs text-slate-500 mb-0.5">ROAS</div>
-                          <div className="font-semibold text-emerald-600 text-sm">{campaign.roas.toFixed(1)}x</div>
+                          <div className="font-semibold text-emerald-600 text-sm">{formatRoas(campaign.roas)}</div>
                         </div>
                         <div className="bg-white rounded-lg px-3 py-2 text-center">
                           <div className="text-xs text-slate-500 mb-0.5">도달</div>
@@ -444,7 +444,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
                         </div>
                         <div className="bg-white rounded-lg px-3 py-2 text-center">
                           <div className="text-xs text-slate-500 mb-0.5">CTR</div>
-                          <div className="font-semibold text-slate-800 text-sm">{campaign.ctr.toFixed(2)}%</div>
+                          <div className="font-semibold text-slate-800 text-sm">{formatPercent(campaign.ctr, 2)}</div>
                         </div>
                         <div className="bg-white rounded-lg px-3 py-2 text-center">
                           <div className="text-xs text-slate-500 mb-0.5">CPC</div>
@@ -511,7 +511,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
                                 </div>
                                 <div className="text-center">
                                   <div className="text-xs text-slate-400">ROAS</div>
-                                  <div className="text-sm text-emerald-600 font-medium">{adSet.roas.toFixed(1)}x</div>
+                                  <div className="text-sm text-emerald-600 font-medium">{formatRoas(adSet.roas)}</div>
                                 </div>
                                 <div className="text-center">
                                   <div className="text-xs text-slate-400">도달</div>
@@ -523,7 +523,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
                                 </div>
                                 <div className="text-center">
                                   <div className="text-xs text-slate-400">CTR</div>
-                                  <div className="text-sm text-slate-600">{adSet.ctr.toFixed(2)}%</div>
+                                  <div className="text-sm text-slate-600">{formatPercent(adSet.ctr, 2)}</div>
                                 </div>
                                 <div className="text-center">
                                   <div className="text-xs text-slate-400">CPC</div>
@@ -586,10 +586,10 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
                                         {/* 소재 성과 지표 */}
                                         <div className="flex flex-wrap gap-4 text-xs">
                                           <span className="text-slate-500">지출 <span className="text-slate-700 font-medium">₩{ad.spend.toLocaleString()}</span></span>
-                                          <span className="text-slate-500">ROAS <span className="text-emerald-600 font-medium">{ad.roas.toFixed(1)}x</span></span>
+                                          <span className="text-slate-500">ROAS <span className="text-emerald-600 font-medium">{formatRoas(ad.roas)}</span></span>
                                           <span className="text-slate-500">도달 <span className="text-slate-700 font-medium">{formatNumber(ad.reach)}</span></span>
                                           <span className="text-slate-500">클릭 <span className="text-slate-700 font-medium">{formatNumber(ad.clicks)}</span></span>
-                                          <span className="text-slate-500">CTR <span className="text-slate-700 font-medium">{ad.ctr.toFixed(2)}%</span></span>
+                                          <span className="text-slate-500">CTR <span className="text-slate-700 font-medium">{formatPercent(ad.ctr, 2)}</span></span>
                                           <span className="text-slate-500">CPC <span className="text-slate-700 font-medium">₩{Math.round(ad.cpc).toLocaleString()}</span></span>
                                         </div>
                                       </div>
@@ -710,7 +710,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
                       <td className="py-4 px-4 text-sm font-semibold text-emerald-600 text-right">{campaign.roas}x</td>
                       <td className="py-4 px-4 text-sm text-slate-600 text-right">{formatNumber(campaign.reach)}</td>
                       <td className="py-4 px-4 text-sm text-slate-600 text-right">{formatNumber(campaign.clicks)}</td>
-                      <td className="py-4 px-4 text-sm text-slate-600 text-right">{campaign.ctr.toFixed(1)}%</td>
+                      <td className="py-4 px-4 text-sm text-slate-600 text-right">{formatPercent(campaign.ctr)}</td>
                       <td className="py-4 px-4 text-sm text-slate-600 text-right">₩{Math.round(campaign.cpc).toLocaleString()}</td>
                       <td className="py-4 px-4 text-center">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
@@ -843,7 +843,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
                     borderRadius: '12px',
                     color: '#fff',
                   }}
-                  formatter={(value: number) => [value.toFixed(2) + '%', 'CTR']}
+                  formatter={(value: number) => [formatPercent(value, 2), 'CTR']}
                 />
                 <Line
                   type="monotone"

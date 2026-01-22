@@ -3,7 +3,7 @@ import { Loader2, Search, Users, Instagram, Heart, MessageCircle, X, Eye, Extern
 import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
 import type { DashInfluencerWithDetail, DashInfluencerPost } from '../../types/metaDash';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
-import { formatNumber as formatNumberBase } from '../../utils/formatters';
+import { formatNumber as formatNumberBase, formatPercent } from '../../utils/formatters';
 
 // 숫자 포맷팅 (null/undefined 처리 포함 래퍼)
 const formatNumber = (num: number | null | undefined): string => {
@@ -102,7 +102,7 @@ function TableRow({
   // 참여율율 계산 (평균 좋아요+댓글 / 팔로워수 * 100)
   const followerCount = detail?.followersCount || influencer.followerCount || 0;
   const engagementRate = followerCount > 0 && avgLikes !== null && avgComments !== null
-    ? (((avgLikes + avgComments) / followerCount) * 100).toFixed(2)
+    ? ((avgLikes + avgComments) / followerCount) * 100
     : null;
 
   // 최근 활동 (가장 최근 게시물 날짜)
@@ -208,7 +208,7 @@ function TableRow({
 
       {/* 참여율율 */}
       <td className="px-4 py-4 text-sm text-slate-700">
-        {engagementRate ? `${engagementRate}%` : '-'}
+        {engagementRate !== null ? formatPercent(engagementRate, 2) : '-'}
       </td>
 
       {/* 최근 활동 */}
@@ -370,8 +370,8 @@ function InfluencerDetailModal({
     ? Math.round(reelsPosts.reduce((sum, p) => sum + getValidViewCount(p.videoViewCount), 0) / reelsPosts.length)
     : 0;
   const reelsEngagement = detail?.followersCount && avgReelsViews > 0
-    ? ((avgReelsViews / detail.followersCount) * 100).toFixed(1)
-    : '0';
+    ? (avgReelsViews / detail.followersCount) * 100
+    : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -474,7 +474,7 @@ function InfluencerDetailModal({
                   </div>
                   <div>
                     <div className="text-xs text-slate-500">릴스 평균 참여율</div>
-                    <div className="font-bold text-slate-900">{reelsEngagement}%</div>
+                    <div className="font-bold text-slate-900">{formatPercent(reelsEngagement)}</div>
                   </div>
                 </div>
               </div>
