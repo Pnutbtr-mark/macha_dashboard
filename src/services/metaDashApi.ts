@@ -1,6 +1,7 @@
 // Meta Dash API 서비스
 import type {
   MetaDashResponse,
+  PageResponse,
   SyncResponse,
   DashMemberInsight,
   DashFollower,
@@ -170,12 +171,29 @@ export async function fetchDashInfluencerDetail(
   return response.result?.[0] || null;
 }
 
-// 10. 인플루언서 목록 + 상세 통합 조회 (신규)
-export async function fetchDashInfluencersWithDetail(): Promise<DashInfluencerWithDetail[]> {
-  const response = await fetchMetaDash<MetaDashResponse<DashInfluencerWithDetail[]>>(
-    `/api/v1/dash-influencers/list-with-detail`
+// 10. 인플루언서 목록 + 상세 통합 조회 (페이징 지원)
+export interface FetchInfluencersParams {
+  page?: number;
+  size?: number;
+}
+
+export async function fetchDashInfluencersWithDetail(
+  params: FetchInfluencersParams = {}
+): Promise<PageResponse<DashInfluencerWithDetail>> {
+  const { page = 0, size = 15 } = params;
+  const response = await fetchMetaDash<MetaDashResponse<PageResponse<DashInfluencerWithDetail>[]>>(
+    `/api/v1/dash-influencers/list-with-detail?page=${page}&size=${size}`
   );
-  return response.result || [];
+  return response.result?.[0] || {
+    content: [],
+    totalElements: 0,
+    totalPages: 0,
+    number: 0,
+    size,
+    first: true,
+    last: true,
+    empty: true
+  };
 }
 
 // 11. 광고 캠페인 목록 조회

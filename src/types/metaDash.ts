@@ -8,6 +8,18 @@ export interface MetaDashResponse<T> {
   result: T;
 }
 
+// Spring Page 응답 타입
+export interface PageResponse<T> {
+  content: T[];
+  totalPages: number;
+  totalElements: number;
+  number: number;      // 현재 페이지 (0-based)
+  size: number;        // 페이지 크기
+  first: boolean;
+  last: boolean;
+  empty: boolean;
+}
+
 // 1. 동기화 API 응답
 export interface SyncResponse {
   responseName: string;
