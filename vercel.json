@@ -72,16 +72,8 @@
       "destination": "/api/image-proxy.js"
     },
     {
-      "source": "/assets/:path*",
-      "destination": "/dist/assets/:path*"
-    },
-    {
-      "source": "/:path*\\.(js|css|ico|png|jpg|jpeg|svg|woff|woff2)",
-      "destination": "/dist/:path*.$1"
-    },
-    {
-      "source": "/:path*",
-      "destination": "/dist/index.html"
+      "source": "/((?!api|blog|robots\\.txt).*)",
+      "destination": "/index.html"
     }
   ]
 }
