@@ -1,24 +1,24 @@
 /**
  * 이미지 URL 처리 유틸리티
  *
- * Instagram CDN 이미지는 서버 프록시를 통해 로드
- * CORS 및 만료 문제 일부 우회 가능
- *
- * TODO: 장기적으로 Apify 수집 시 이미지를 S3/Cloudinary에 저장하는 방식으로 전환 필요
+ * S3/CloudFront 상대 경로를 완전한 URL로 변환
  */
 
+// CloudFront 베이스 URL
+const CLOUDFRONT_BASE_URL = 'https://d2xwq3y8g7dpg3.cloudfront.net';
+
 /**
- * 이미지 URL을 프록시 URL로 변환
+ * 이미지 URL을 적절한 형식으로 변환
  *
  * @param url - 원본 이미지 URL
- * @returns Instagram CDN URL인 경우 프록시 URL, 그 외에는 원본 URL
+ * @returns 변환된 이미지 URL
  */
 export function getProxiedImageUrl(url: string | null | undefined): string {
   if (!url) return '';
 
-  // Instagram CDN URL인 경우 프록시 사용 (상대 경로로 요청)
-  if (url.includes('cdninstagram.com') || url.includes('instagram.com') || url.includes('fbcdn.net')) {
-    return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+  // S3/CloudFront 상대 경로인 경우 베이스 URL 추가
+  if (url.startsWith('/matcha/')) {
+    return `${CLOUDFRONT_BASE_URL}${url}`;
   }
 
   return url;
