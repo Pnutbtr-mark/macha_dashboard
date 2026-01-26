@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Loader2, Search, Users, Instagram, Heart, MessageCircle, X, Eye, ExternalLink, ChevronUp, ChevronDown, Calendar, Play } from 'lucide-react';
-import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
-import type { DashInfluencerWithDetail, DashInfluencerPost } from '../../types/metaDash';
+import { useState, useEffect, useCallback } from 'react';
+import { Loader2, Search, Users, Instagram, Heart, MessageCircle, X, Eye, ExternalLink, ChevronUp, ChevronDown, Calendar, Play, RefreshCw } from 'lucide-react';
+import { fetchDashInfluencersWithDetail, updateDashInfluencer, fetchDashInfluencerDetail } from '../../services/metaDashApi';
+import type { DashInfluencerWithDetail, DashInfluencerPost, DashInfluencer, DashInfluencerDetail } from '../../types/metaDash';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
 import { formatNumber as formatNumberBase, formatPercent } from '../../utils/formatters';
 
@@ -306,14 +306,62 @@ function ContentTypeChart({ posts }: { posts: DashInfluencerPost[] }) {
 function InfluencerDetailModal({
   item,
   isOpen,
-  onClose
+  onClose,
+  onRefresh
 }: {
   item: DashInfluencerWithDetail | null;
   isOpen: boolean;
   onClose: () => void;
+  onRefresh?: (updatedInfluencer: DashInfluencer, updatedDetail: DashInfluencerDetail | null) => void;
 }) {
   const [feedSortBy, setFeedSortBy] = useState<'popular' | 'comments' | 'latest'>('popular');
   const [reelsSortBy, setReelsSortBy] = useState<'popular' | 'views' | 'latest'>('popular');
+
+  // 새로고침 상태
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [refreshSuccess, setRefreshSuccess] = useState(false);
+
+  // 새로고침 핸들러
+  const handleRefresh = async () => {
+    if (refreshing || !item) return;
+
+    setRefreshing(true);
+    setRefreshError(null);
+    setRefreshSuccess(false);
+
+    try {
+      // 1. PUT API 호출 (기본 정보 갱신)
+      const updated = await updateDashInfluencer(
+        item.dashInfluencer.id,
+        item.dashInfluencer
+      );
+
+      if (!updated) {
+        throw new Error('갱신된 데이터를 받지 못했습니다');
+      }
+
+      // 2. 상세 정보도 새로 조회
+      const detailResponse = await fetchDashInfluencerDetail(item.dashInfluencer.id);
+      const updatedDetail = detailResponse?.dashInfluencerDetail || null;
+
+      // 3. 콜백으로 부모 컴포넌트에 알림
+      if (onRefresh) {
+        onRefresh(updated, updatedDetail);
+      }
+
+      setRefreshSuccess(true);
+      // 3초 후 성공 메시지 숨김
+      setTimeout(() => setRefreshSuccess(false), 3000);
+    } catch (error) {
+      console.error('인플루언서 데이터 갱신 실패:', error);
+      setRefreshError(error instanceof Error ? error.message : '갱신 실패');
+      // 5초 후 에러 메시지 숨김
+      setTimeout(() => setRefreshError(null), 5000);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (!isOpen || !item) return null;
 
@@ -429,6 +477,23 @@ function InfluencerDetailModal({
 
               {/* 버튼 */}
               <div className="flex items-center gap-2 mr-8">
+                {/* 새로고침 버튼 */}
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className={`p-2 border rounded-lg transition-colors ${
+                    refreshing
+                      ? 'border-slate-200 bg-slate-50 cursor-not-allowed'
+                      : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                  title="인플루언서 데이터 새로고침"
+                >
+                  {refreshing ? (
+                    <Loader2 size={20} className="text-slate-400 animate-spin" />
+                  ) : (
+                    <RefreshCw size={20} className="text-slate-400" />
+                  )}
+                </button>
                 <button className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
                   <Heart size={20} className="text-slate-400" />
                 </button>
@@ -443,6 +508,18 @@ function InfluencerDetailModal({
                 </a>
               </div>
             </div>
+
+            {/* 새로고침 상태 메시지 */}
+            {refreshSuccess && (
+              <div className="mt-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-600">
+                데이터가 성공적으로 갱신되었습니다.
+              </div>
+            )}
+            {refreshError && (
+              <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                갱신 실패: {refreshError}
+              </div>
+            )}
 
             {/* 바이오 */}
             {detail?.biography && (
@@ -747,6 +824,36 @@ export function InfluencersTab() {
     setIsModalOpen(false);
     setSelectedItem(null);
   };
+
+  // 인플루언서 갱신 후 로컬 상태 업데이트
+  const handleInfluencerRefresh = useCallback((
+    updatedInfluencer: DashInfluencer,
+    updatedDetail: DashInfluencerDetail | null
+  ) => {
+    // 목록에서 해당 인플루언서 업데이트
+    setInfluencersWithDetail(prev =>
+      prev.map(item =>
+        item.dashInfluencer.id === updatedInfluencer.id
+          ? {
+              ...item,
+              dashInfluencer: updatedInfluencer,
+              dashInfluencerDetail: updatedDetail ?? item.dashInfluencerDetail
+            }
+          : item
+      )
+    );
+
+    // 선택된 아이템도 업데이트
+    setSelectedItem(prev =>
+      prev && prev.dashInfluencer.id === updatedInfluencer.id
+        ? {
+            ...prev,
+            dashInfluencer: updatedInfluencer,
+            dashInfluencerDetail: updatedDetail ?? prev.dashInfluencerDetail
+          }
+        : prev
+    );
+  }, []);
 
   // 정렬 핸들러
   const handleSort = (field: SortField) => {
@@ -1194,6 +1301,7 @@ export function InfluencersTab() {
         item={selectedItem}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+        onRefresh={handleInfluencerRefresh}
       />
     </div>
   );

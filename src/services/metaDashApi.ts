@@ -171,6 +171,21 @@ export async function fetchDashInfluencerDetail(
   return response.result?.[0] || null;
 }
 
+// 9-1. 인플루언서 데이터 갱신 (Apify 새로고침)
+export async function updateDashInfluencer(
+  influencerId: string,
+  influencer: DashInfluencer
+): Promise<DashInfluencer | null> {
+  const response = await fetchMetaDash<MetaDashResponse<DashInfluencer[]>>(
+    `/api/v1/dash-influencers/${influencerId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(influencer),
+    }
+  );
+  return response.result?.[0] || null;
+}
+
 // 10. 인플루언서 목록 + 상세 통합 조회 (페이징 + 필터 지원)
 export interface FetchInfluencersParams {
   page?: number;
