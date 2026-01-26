@@ -1,12 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
 import { AdsTab } from '../../components/tabs/AdsTab';
 import { PeriodFilter } from '../../components/common/PeriodFilter';
-import {
-  useProfileInsight,
-  useAdPerformance,
-  useDailyAdData,
-} from '../../hooks/useApi';
+import { useAdData } from '../../hooks/useAdData';
+import { useProfileData } from '../../hooks/useProfileData';
 import { useAuth } from '../../contexts/AuthContext';
 import { syncDashAd } from '../../services/metaDashApi';
 import type { PeriodType } from '../../types';
@@ -20,16 +17,19 @@ export function AdsPage() {
   });
   const [syncing, setSyncing] = useState(false);
 
-  // API 데이터
-  const { data: profileData } = useProfileInsight();
-  const { data: adData, loading: adLoading, refetch: refetchAd } = useAdPerformance(user?.id);
-  const { data: dailyAdData, loading: dailyAdLoading, refetch: refetchDailyAd, serverSyncTime } = useDailyAdData(period, user?.id);
+  // 통합 훅 사용 (기존 2개 훅 → 1개 훅으로 통합)
+  const {
+    adPerformance,
+    dailyAdData,
+    campaignPerformance,
+    campaignHierarchy,
+    loading: adLoading,
+    serverSyncTime,
+    refetch: refetchAd,
+  } = useAdData();
 
-  // 페이지 마운트 시 데이터 새로고침
-  useEffect(() => {
-    refetchAd();
-    refetchDailyAd();
-  }, [refetchAd, refetchDailyAd]);
+  // 프로필 데이터 (AdsTab에 필요)
+  const { profileInsight } = useProfileData();
 
   // 광고 동기화 핸들러
   const handleRefreshAds = useCallback(async () => {
@@ -44,10 +44,7 @@ export function AdsPage() {
         console.log('광고 동기화 결과:', syncSuccess);
       }
 
-      await Promise.all([
-        refetchAd(),
-        refetchDailyAd(),
-      ]);
+      await refetchAd();
 
       console.log('광고 데이터 새로고침 완료');
     } catch (error) {
@@ -55,9 +52,7 @@ export function AdsPage() {
     } finally {
       setSyncing(false);
     }
-  }, [syncing, user?.id, refetchAd, refetchDailyAd]);
-
-  const isLoading = adLoading || dailyAdLoading;
+  }, [syncing, user?.id, refetchAd]);
 
   return (
     <>
@@ -91,12 +86,12 @@ export function AdsPage() {
 
       {/* Tab Content */}
       <AdsTab
-        adData={adData?.adPerformance || null}
+        adData={adPerformance}
         dailyData={dailyAdData}
-        campaignData={adData?.campaignData || []}
-        campaignHierarchy={adData?.campaignHierarchy || []}
-        profileData={profileData}
-        loading={isLoading}
+        campaignData={campaignPerformance}
+        campaignHierarchy={campaignHierarchy}
+        profileData={profileInsight}
+        loading={adLoading}
       />
     </>
   );

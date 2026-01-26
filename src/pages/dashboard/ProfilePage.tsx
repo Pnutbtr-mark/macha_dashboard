@@ -1,13 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
 import { ProfileTab } from '../../components/tabs/ProfileTab';
 import { PeriodFilter } from '../../components/common/PeriodFilter';
-import {
-  useProfileInsight,
-  useDailyProfileData,
-  useFollowerDemographic,
-  useProfileContent,
-} from '../../hooks/useApi';
+import { useProfileData } from '../../hooks/useProfileData';
 import { useAuth } from '../../contexts/AuthContext';
 import { syncDashMember } from '../../services/metaDashApi';
 import type { PeriodType } from '../../types';
@@ -21,19 +16,16 @@ export function ProfilePage() {
   });
   const [syncing, setSyncing] = useState(false);
 
-  // API 데이터
-  const { data: profileData, loading: profileLoading, refetch: refetchProfile, serverSyncTime } = useProfileInsight();
-  const { data: dailyProfileData, loading: dailyProfileLoading, refetch: refetchDailyProfile } = useDailyProfileData(period);
-  const { data: followerDemographic, loading: followerDemographicLoading, refetch: refetchFollowerDemographic } = useFollowerDemographic();
-  const { data: profileContent, loading: profileContentLoading, refetch: refetchProfileContent } = useProfileContent();
-
-  // 페이지 마운트 시 데이터 새로고침
-  useEffect(() => {
-    refetchProfile();
-    refetchDailyProfile();
-    refetchFollowerDemographic();
-    refetchProfileContent();
-  }, [refetchProfile, refetchDailyProfile, refetchFollowerDemographic, refetchProfileContent]);
+  // 통합 훅 사용 (기존 4개 훅 → 1개 훅으로 통합)
+  const {
+    profileInsight,
+    dailyProfileData,
+    followerDemographic,
+    profileContent,
+    loading,
+    serverSyncTime,
+    refetch,
+  } = useProfileData();
 
   // 동기화 핸들러
   const handleRefreshProfile = useCallback(async () => {
@@ -48,12 +40,7 @@ export function ProfilePage() {
         console.log('프로필 동기화 결과:', syncSuccess);
       }
 
-      await Promise.all([
-        refetchProfile(),
-        refetchDailyProfile(),
-        refetchFollowerDemographic(),
-        refetchProfileContent(),
-      ]);
+      await refetch();
 
       console.log('프로필 데이터 새로고침 완료');
     } catch (error) {
@@ -61,9 +48,7 @@ export function ProfilePage() {
     } finally {
       setSyncing(false);
     }
-  }, [syncing, user?.id, refetchProfile, refetchDailyProfile, refetchFollowerDemographic, refetchProfileContent]);
-
-  const isLoading = profileLoading || dailyProfileLoading || followerDemographicLoading || profileContentLoading;
+  }, [syncing, user?.id, refetch]);
 
   return (
     <>
@@ -97,11 +82,11 @@ export function ProfilePage() {
 
       {/* Tab Content */}
       <ProfileTab
-        profileData={profileData}
+        profileData={profileInsight}
         dailyData={dailyProfileData}
         followerDemographic={followerDemographic}
         contentData={profileContent}
-        loading={isLoading}
+        loading={loading}
       />
     </>
   );
