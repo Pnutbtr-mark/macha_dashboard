@@ -795,23 +795,52 @@ export function InfluencersTab() {
     setCurrentPage(0);
   };
 
+  // 팔로워 필터 → followerMin/Max 변환
+  const getFollowerRange = (filter: string): { followerMin?: number; followerMax?: number } => {
+    switch (filter) {
+      case 'under1k': return { followerMax: 999 };
+      case '1k-10k': return { followerMin: 1000, followerMax: 9999 };
+      case '10k-50k': return { followerMin: 10000, followerMax: 49999 };
+      case '50k-100k': return { followerMin: 50000, followerMax: 99999 };
+      case 'over100k': return { followerMin: 100000 };
+      default: return {};
+    }
+  };
+
+  // 활동 필터 → days 변환
+  const getActivityDays = (filter: string): number | undefined => {
+    switch (filter) {
+      case 'week': return 7;
+      case 'month': return 30;
+      case '3months': return 90;
+      default: return undefined;
+    }
+  };
+
   useEffect(() => {
     const loadInfluencers = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        if (hasActiveFilter) {
-          // 필터 있음: 전체 데이터 조회 후 클라이언트 필터링
-          const result = await fetchDashInfluencersWithDetail({ page: 0, size: 10000 });
-          setInfluencersWithDetail(result.content);
-        } else {
-          // 필터 없음: 서버 페이징 사용
-          const result = await fetchDashInfluencersWithDetail({ page: currentPage, size: PAGE_SIZE });
-          setInfluencersWithDetail(result.content);
-          setServerTotalElements(result.totalElements);
-          setServerTotalPages(result.totalPages);
-        }
+        // 필터 파라미터 구성
+        const followerRange = getFollowerRange(appliedFilters.follower);
+        const days = getActivityDays(appliedFilters.activity);
+
+        const params = {
+          page: currentPage + 1,
+          size: PAGE_SIZE,
+          search: appliedFilters.search || undefined,
+          category: appliedFilters.category !== 'all' ? appliedFilters.category : undefined,
+          ...followerRange,
+          days
+        };
+
+        // 서버 페이징 + 필터 사용
+        const result = await fetchDashInfluencersWithDetail(params);
+        setInfluencersWithDetail(result.content);
+        setServerTotalElements(result.totalElements);
+        setServerTotalPages(result.totalPages);
       } catch (err) {
         console.error('[InfluencersTab] 데이터 로드 실패:', err);
         setError(err instanceof Error ? err.message : '알 수 없는 오류');

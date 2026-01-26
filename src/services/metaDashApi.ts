@@ -171,18 +171,33 @@ export async function fetchDashInfluencerDetail(
   return response.result?.[0] || null;
 }
 
-// 10. 인플루언서 목록 + 상세 통합 조회 (페이징 지원)
+// 10. 인플루언서 목록 + 상세 통합 조회 (페이징 + 필터 지원)
 export interface FetchInfluencersParams {
   page?: number;
   size?: number;
+  search?: string;
+  category?: string;
+  followerMin?: number;
+  followerMax?: number;
+  days?: number;
 }
 
 export async function fetchDashInfluencersWithDetail(
   params: FetchInfluencersParams = {}
 ): Promise<PageResponse<DashInfluencerWithDetail>> {
-  const { page = 0, size = 15 } = params;
+  const { page = 0, size = 15, search, category, followerMin, followerMax, days } = params;
+
+  const queryParams = new URLSearchParams();
+  queryParams.append('page', String(page));
+  queryParams.append('size', String(size));
+  if (search) queryParams.append('search', search);
+  if (category) queryParams.append('category', category);
+  if (followerMin !== undefined) queryParams.append('followerMin', String(followerMin));
+  if (followerMax !== undefined) queryParams.append('followerMax', String(followerMax));
+  if (days !== undefined) queryParams.append('days', String(days));
+
   const response = await fetchMetaDash<MetaDashResponse<PageResponse<DashInfluencerWithDetail>[]>>(
-    `/api/v1/dash-influencers/list-with-detail?page=${page}&size=${size}`
+    `/api/v1/dash-influencers/list-with-detail?${queryParams.toString()}`
   );
   return response.result?.[0] || {
     content: [],
