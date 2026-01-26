@@ -336,6 +336,10 @@ export function mapToAdPerformance(
   const cpc = calculateCpc(spend, clicks);
   const frequency = calculateFrequency(impressions, reach);
 
+  // 오늘 ROAS 가중 평균 계산
+  const todayRoasWeighted = todayInsights.reduce((sum, i) => sum + (i.roas || 0) * i.spend, 0);
+  const roas = spend > 0 ? todayRoasWeighted / spend : 0;
+
   // 어제 합계
   const yesterdayInsights = dateMap.get(yesterdayDate) || [];
   const yesterdaySpend = yesterdayInsights.reduce((sum, i) => sum + i.spend, 0);
@@ -345,11 +349,15 @@ export function mapToAdPerformance(
   const yesterdayCtr = calculateCtr(yesterdayClicks, yesterdayImpressions);
   const yesterdayCpc = calculateCpc(yesterdaySpend, yesterdayClicks);
 
+  // 어제 ROAS 가중 평균 계산
+  const yesterdayRoasWeighted = yesterdayInsights.reduce((sum, i) => sum + (i.roas || 0) * i.spend, 0);
+  const yesterdayRoas = yesterdaySpend > 0 ? yesterdayRoasWeighted / yesterdaySpend : 0;
+
   return {
     spend,
     spendGrowth: calculateGrowth(spend, yesterdaySpend),
-    roas: 0, // API에서 제공하지 않음
-    roasGrowth: 0,
+    roas,
+    roasGrowth: calculateGrowth(roas, yesterdayRoas),
     cpc,
     cpcGrowth: calculateGrowth(cpc, yesterdayCpc),
     ctr,
@@ -383,16 +391,18 @@ export function mapToDailyAdData(
     impressions: number;
     clicks: number;
     reach: number;
+    roasWeighted: number;
   }>();
 
   for (const insight of allInsights) {
     const dateStr = insight.time.split('T')[0];
-    const existing = dateMap.get(dateStr) || { spend: 0, impressions: 0, clicks: 0, reach: 0 };
+    const existing = dateMap.get(dateStr) || { spend: 0, impressions: 0, clicks: 0, reach: 0, roasWeighted: 0 };
     dateMap.set(dateStr, {
       spend: existing.spend + insight.spend,
       impressions: existing.impressions + insight.impressions,
       clicks: existing.clicks + insight.clicks,
       reach: existing.reach + insight.reach,
+      roasWeighted: existing.roasWeighted + (insight.roas || 0) * insight.spend,
     });
   }
 
@@ -403,7 +413,7 @@ export function mapToDailyAdData(
     .map(([dateStr, data]) => ({
       date: formatDateToMMDD(dateStr + 'T00:00:00'),
       spend: data.spend,
-      roas: 0, // API에서 제공하지 않음
+      roas: data.spend > 0 ? data.roasWeighted / data.spend : 0,
       clicks: data.clicks,
       impressions: data.impressions,
       conversions: 0, // API에서 제공하지 않음
@@ -440,6 +450,10 @@ export function mapToCampaignPerformance(
     const totalClicks = records.reduce((sum, r) => sum + r.insight.clicks, 0);
     const totalImpressions = records.reduce((sum, r) => sum + r.insight.impressions, 0);
 
+    // ROAS 가중 평균 계산
+    const roasWeighted = records.reduce((sum, r) => sum + (r.insight.roas || 0) * r.insight.spend, 0);
+    const roas = totalSpend > 0 ? roasWeighted / totalSpend : 0;
+
     // 최초 기록일 추출 (가장 빠른 time 값)
     const earliestTime = records.reduce((min, r) =>
       r.insight.time < min ? r.insight.time : min,
@@ -450,7 +464,7 @@ export function mapToCampaignPerformance(
       id: adId,
       name: detail.adName,
       spend: totalSpend,
-      roas: 0, // API 미제공
+      roas,
       reach: totalReach,
       clicks: totalClicks,
       ctr: calculateCtr(totalClicks, totalImpressions),
@@ -482,6 +496,7 @@ export function mapToCampaignHierarchy(
     reach: number;
     clicks: number;
     impressions: number;
+    roasWeighted: number;
   }>();
 
   for (const ad of allAds) {
@@ -492,12 +507,14 @@ export function mapToCampaignHierarchy(
       reach: 0,
       clicks: 0,
       impressions: 0,
+      roasWeighted: 0,
     };
     adSetPerformanceMap.set(adsetId, {
       spend: existing.spend + insight.spend,
       reach: existing.reach + insight.reach,
       clicks: existing.clicks + insight.clicks,
       impressions: existing.impressions + insight.impressions,
+      roasWeighted: existing.roasWeighted + (insight.roas || 0) * insight.spend,
     });
   }
 
@@ -540,6 +557,7 @@ export function mapToCampaignHierarchy(
         reach: 0,
         clicks: 0,
         impressions: 0,
+        roasWeighted: 0,
       };
 
       return {
@@ -558,7 +576,7 @@ export function mapToCampaignHierarchy(
         impressions: perf.impressions,
         ctr: calculateCtr(perf.clicks, perf.impressions),
         cpc: calculateCpc(perf.spend, perf.clicks),
-        roas: 0, // API에서 전환 가치 미제공
+        roas: perf.spend > 0 ? perf.roasWeighted / perf.spend : 0,
         ads: [],  // 기존 API에서는 소재 데이터 없음
       };
     });
@@ -568,6 +586,10 @@ export function mapToCampaignHierarchy(
     const totalReach = adSetsWithPerformance.reduce((sum, s) => sum + s.reach, 0);
     const totalClicks = adSetsWithPerformance.reduce((sum, s) => sum + s.clicks, 0);
     const totalImpressions = adSetsWithPerformance.reduce((sum, s) => sum + s.impressions, 0);
+
+    // 캠페인 ROAS 가중 평균 계산
+    const totalRoasWeighted = adSetsWithPerformance.reduce((sum, s) => sum + s.roas * s.spend, 0);
+    const campaignRoas = totalSpend > 0 ? totalRoasWeighted / totalSpend : 0;
 
     return {
       campaignId: campaign.campaignId,
@@ -582,7 +604,7 @@ export function mapToCampaignHierarchy(
       totalImpressions,
       ctr: calculateCtr(totalClicks, totalImpressions),
       cpc: calculateCpc(totalSpend, totalClicks),
-      roas: 0, // API에서 전환 가치 미제공
+      roas: campaignRoas,
       adSets: adSetsWithPerformance,
     };
   });
@@ -627,8 +649,8 @@ export function mapToAdPerformanceFromCampaignDetail(
   }
 
   // 2. 중복 제거된 캠페인에서 인사이트 추출 (광고세트/소재 중복 제거 포함)
-  let todaySpend = 0, todayReach = 0, todayClicks = 0, todayImpressions = 0;
-  let yesterdaySpend = 0, yesterdayReach = 0, yesterdayClicks = 0, yesterdayImpressions = 0;
+  let todaySpend = 0, todayReach = 0, todayClicks = 0, todayImpressions = 0, todayRoasWeighted = 0;
+  let yesterdaySpend = 0, yesterdayReach = 0, yesterdayClicks = 0, yesterdayImpressions = 0, yesterdayRoasWeighted = 0;
 
   for (const detail of campaignMap.values()) {
     const adDetailObjs = detail.adDetailResponseObjs || [];
@@ -681,11 +703,13 @@ export function mapToAdPerformanceFromCampaignDetail(
           todayReach += insight.reach || 0;
           todayClicks += insight.clicks || 0;
           todayImpressions += insight.impressions || 0;
+          todayRoasWeighted += (insight.roas || 0) * (insight.spend || 0);
         } else if (insightDate === yesterdayDate) {
           yesterdaySpend += insight.spend || 0;
           yesterdayReach += insight.reach || 0;
           yesterdayClicks += insight.clicks || 0;
           yesterdayImpressions += insight.impressions || 0;
+          yesterdayRoasWeighted += (insight.roas || 0) * (insight.spend || 0);
         }
       }
     }
@@ -695,15 +719,17 @@ export function mapToAdPerformanceFromCampaignDetail(
   const ctr = calculateCtr(todayClicks, todayImpressions);
   const cpc = calculateCpc(todaySpend, todayClicks);
   const frequency = calculateFrequency(todayImpressions, todayReach);
+  const roas = todaySpend > 0 ? todayRoasWeighted / todaySpend : 0;
 
   const yesterdayCtr = calculateCtr(yesterdayClicks, yesterdayImpressions);
   const yesterdayCpc = calculateCpc(yesterdaySpend, yesterdayClicks);
+  const yesterdayRoas = yesterdaySpend > 0 ? yesterdayRoasWeighted / yesterdaySpend : 0;
 
   return {
     spend: todaySpend,
     spendGrowth: calculateGrowth(todaySpend, yesterdaySpend),
-    roas: 0,
-    roasGrowth: 0,
+    roas,
+    roasGrowth: calculateGrowth(roas, yesterdayRoas),
     cpc,
     cpcGrowth: calculateGrowth(cpc, yesterdayCpc),
     ctr,
@@ -746,7 +772,7 @@ export function mapToDailyAdDataFromCampaignDetail(
   }
 
   // 2. 날짜별 합계 (중복 제거된 데이터 사용)
-  const dateMap = new Map<string, { spend: number; impressions: number; clicks: number; reach: number }>();
+  const dateMap = new Map<string, { spend: number; impressions: number; clicks: number; reach: number; roasWeighted: number }>();
 
   for (const detail of campaignMap.values()) {
     // 광고세트 중복 제거 (metaAdSetId 기준)
@@ -790,12 +816,13 @@ export function mapToDailyAdDataFromCampaignDetail(
         if (!insight) continue;
 
         const dateStr = insight.time.split('T')[0];
-        const existing = dateMap.get(dateStr) || { spend: 0, impressions: 0, clicks: 0, reach: 0 };
+        const existing = dateMap.get(dateStr) || { spend: 0, impressions: 0, clicks: 0, reach: 0, roasWeighted: 0 };
         dateMap.set(dateStr, {
           spend: existing.spend + insight.spend,
           impressions: existing.impressions + insight.impressions,
           clicks: existing.clicks + insight.clicks,
           reach: existing.reach + insight.reach,
+          roasWeighted: existing.roasWeighted + (insight.roas || 0) * insight.spend,
         });
       }
     }
@@ -812,7 +839,7 @@ export function mapToDailyAdDataFromCampaignDetail(
     .map(([dateStr, data]) => ({
       date: formatDateToMMDD(dateStr + 'T00:00:00'),
       spend: data.spend,
-      roas: 0,
+      roas: data.spend > 0 ? data.roasWeighted / data.spend : 0,
       clicks: data.clicks,
       impressions: data.impressions,
       conversions: 0,
@@ -932,6 +959,7 @@ export function mapToCampaignHierarchyFromCampaignDetail(
         const adReach = isToday ? (insight?.reach || 0) : 0;
         const adClicks = isToday ? (insight?.clicks || 0) : 0;
         const adImpressions = isToday ? (insight?.impressions || 0) : 0;
+        const adRoas = isToday ? (insight?.roas || 0) : 0;
 
         return {
           id: adDetail?.id || '',
@@ -951,7 +979,7 @@ export function mapToCampaignHierarchyFromCampaignDetail(
           impressions: adImpressions,
           ctr: calculateCtr(adClicks, adImpressions),
           cpc: calculateCpc(adSpend, adClicks),
-          roas: 0, // API에서 전환 가치 미제공
+          roas: adRoas,
         };
       });
 
@@ -973,6 +1001,16 @@ export function mapToCampaignHierarchyFromCampaignDetail(
         return sum + (insightDate === todayStr ? (c.dashAdAccountInsight?.impressions || 0) : 0);
       }, 0);
 
+      // 광고세트 ROAS 가중 평균 계산
+      const totalRoasWeighted = uniqueChildObjs.reduce((sum, c) => {
+        const insightDate = c.dashAdAccountInsight?.time?.split('T')[0];
+        if (insightDate !== todayStr) return sum;
+        const spend = c.dashAdAccountInsight?.spend || 0;
+        const roas = c.dashAdAccountInsight?.roas || 0;
+        return sum + roas * spend;
+      }, 0);
+      const adSetRoas = totalSpend > 0 ? totalRoasWeighted / totalSpend : 0;
+
       return {
         id: adSet.id,
         metaAdSetId: adSet.metaAdSetId,
@@ -989,7 +1027,7 @@ export function mapToCampaignHierarchyFromCampaignDetail(
         impressions: totalImpressions,
         ctr: calculateCtr(totalClicks, totalImpressions),
         cpc: calculateCpc(totalSpend, totalClicks),
-        roas: 0, // API에서 전환 가치 미제공
+        roas: adSetRoas,
         ads,
       };
     });
@@ -999,6 +1037,10 @@ export function mapToCampaignHierarchyFromCampaignDetail(
     const totalReach = adSetsWithPerformance.reduce((sum, s) => sum + s.reach, 0);
     const totalClicks = adSetsWithPerformance.reduce((sum, s) => sum + s.clicks, 0);
     const totalImpressions = adSetsWithPerformance.reduce((sum, s) => sum + s.impressions, 0);
+
+    // 캠페인 ROAS 가중 평균 계산
+    const campaignRoasWeighted = adSetsWithPerformance.reduce((sum, s) => sum + s.roas * s.spend, 0);
+    const campaignRoas = totalSpend > 0 ? campaignRoasWeighted / totalSpend : 0;
 
     return {
       campaignId: campaign.id,
@@ -1013,7 +1055,7 @@ export function mapToCampaignHierarchyFromCampaignDetail(
       totalImpressions,
       ctr: calculateCtr(totalClicks, totalImpressions),
       cpc: calculateCpc(totalSpend, totalClicks),
-      roas: 0, // API에서 전환 가치 미제공
+      roas: campaignRoas,
       adSets: adSetsWithPerformance,
     };
   });
@@ -1050,6 +1092,10 @@ export function mapToCampaignPerformanceFromCampaignDetail(
     const totalClicks = records.reduce((sum, r) => sum + r.dashAdAccountInsight.clicks, 0);
     const totalImpressions = records.reduce((sum, r) => sum + r.dashAdAccountInsight.impressions, 0);
 
+    // ROAS 가중 평균 계산
+    const roasWeighted = records.reduce((sum, r) => sum + (r.dashAdAccountInsight.roas || 0) * r.dashAdAccountInsight.spend, 0);
+    const roas = totalSpend > 0 ? roasWeighted / totalSpend : 0;
+
     const earliestTime = records.reduce((min, r) =>
       r.dashAdAccountInsight.time < min ? r.dashAdAccountInsight.time : min,
       records[0].dashAdAccountInsight.time
@@ -1059,7 +1105,7 @@ export function mapToCampaignPerformanceFromCampaignDetail(
       id: adId,
       name: detail.adName,
       spend: totalSpend,
-      roas: 0,
+      roas,
       reach: totalReach,
       clicks: totalClicks,
       ctr: calculateCtr(totalClicks, totalImpressions),

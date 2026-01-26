@@ -136,6 +136,7 @@ export interface DashAdAccountInsight {
   spend: number;
   cpc: number | null;
   ctr: number;
+  roas: number | null;    // 광고비 대비 수익률 (ROAS)
   lastSyncedAt: string;
   createdAt: string;
   updatedAt: string;
