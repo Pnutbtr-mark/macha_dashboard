@@ -51,5 +51,6 @@ export const formatPercent = (value: number, decimals: number = 1): string => {
  * @returns ROAS 문자열 (예: "4.5x")
  */
 export const formatRoas = (value: number, decimals: number = 1): string => {
+  if (isNaN(value) || !isFinite(value)) return '0.0x';
   return value.toFixed(decimals) + 'x';
 };
