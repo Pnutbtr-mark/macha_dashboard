@@ -28,10 +28,13 @@ import {
   Calendar,
   Loader2,
   RefreshCw,
+  Users,
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { formatNumber, formatCurrency, formatDateTime, formatPercent } from '../../utils/formatters';
 import { fetchCampaigns, fetchCampaignResults, syncCampaignData, type NotionCampaign, type CampaignResultDto } from '../../services/notionApi';
+import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
+import type { DashInfluencerWithDetail } from '../../types/metaDash';
 import type {
   Influencer,
   SeedingItem,
@@ -40,6 +43,9 @@ import type {
   SeedingStatus,
   SeedingType,
 } from '../../types';
+import { CampaignSummaryHeader } from '../campaign/CampaignSummaryHeader';
+import { ApplicantListTab } from '../campaign/ApplicantListTab';
+import { mockApplicants, type ApplicantRaw } from '../../mocks/applicantMockData';
 
 interface CampaignTabProps {
   influencers: Influencer[] | null;
@@ -923,8 +929,7 @@ function CampaignListTable({
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <div className="flex items-center justify-center h-32 text-slate-500">
-          <Loader2 className="w-6 h-6 animate-spin mr-2" />
-          Notion에서 캠페인 데이터를 불러오는 중...
+          <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
         </div>
       </div>
     );
@@ -1152,6 +1157,38 @@ async function fetchAIAnalysis(
   return response.json();
 }
 
+// 신청자와 인플루언서 매칭 함수
+function matchApplicantsToInfluencers(
+  applicants: ApplicantRaw[],
+  influencers: DashInfluencerWithDetail[]
+): DashInfluencerWithDetail[] {
+  const matchedInfluencers: DashInfluencerWithDetail[] = [];
+
+  for (const applicant of applicants) {
+    // 1순위: 인스타그램 핸들 매칭
+    if (applicant.instagramHandle) {
+      const normalizedHandle = applicant.instagramHandle.replace('@', '').toLowerCase();
+      const matched = influencers.find(inf =>
+        inf.dashInfluencer.username?.toLowerCase() === normalizedHandle
+      );
+      if (matched && !matchedInfluencers.includes(matched)) {
+        matchedInfluencers.push(matched);
+        continue;
+      }
+    }
+
+    // 2순위: 이름 매칭
+    const nameMatched = influencers.find(inf =>
+      inf.dashInfluencer.name?.toLowerCase() === applicant.name.toLowerCase()
+    );
+    if (nameMatched && !matchedInfluencers.includes(nameMatched)) {
+      matchedInfluencers.push(nameMatched);
+    }
+  }
+
+  return matchedInfluencers;
+}
+
 // 캠페인 상세 뷰 컴포넌트
 function CampaignDetailView({
   campaign,
@@ -1160,11 +1197,18 @@ function CampaignDetailView({
   campaign: CampaignListItem;
   onBack: () => void;
 }) {
-  const [activeSubTab, setActiveSubTab] = useState<'performance' | 'seeding' | 'content'>('performance');
+  const [activeSubTab, setActiveSubTab] = useState<'performance' | 'applicants' | 'seeding' | 'content'>('performance');
   const [notionSeeding, setNotionSeeding] = useState<SeedingItem[]>([]);
+  // 신청자 원본 데이터 (Mock)
+  const [applicantsRaw] = useState<ApplicantRaw[]>(
+    mockApplicants.filter(a => a.campaignId === 'campaign-001')
+  );
+  // 매칭된 인플루언서 (신청자 리스트에 표시)
+  const [matchedInfluencers, setMatchedInfluencers] = useState<DashInfluencerWithDetail[]>([]);
   const [notionContent, setNotionContent] = useState<ContentItem[]>([]);
   const [_campaignResults, setCampaignResults] = useState<CampaignResultDto[]>([]);
   const [detailLoading, setDetailLoading] = useState(true);
+  const [influencerLoading, setInfluencerLoading] = useState(true);
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -1281,13 +1325,47 @@ function CampaignDetailView({
     loadDetailData();
   }, [campaign.id]);
 
+  // 인플루언서 데이터 로드 및 매칭
+  useEffect(() => {
+    const loadInfluencersAndMatch = async () => {
+      try {
+        setInfluencerLoading(true);
+        console.log('[CampaignDetail] Loading influencer data for matching...');
+
+        // 전체 인플루언서 데이터 로드
+        const result = await fetchDashInfluencersWithDetail({ page: 1, size: 1000 });
+        const influencers = result.content;
+        console.log('[CampaignDetail] Loaded influencers:', influencers.length);
+
+        // 신청자와 인플루언서 매칭
+        const matched = matchApplicantsToInfluencers(applicantsRaw, influencers);
+        console.log('[CampaignDetail] Matched influencers:', matched.length);
+
+        setMatchedInfluencers(matched);
+      } catch (err) {
+        console.error('[CampaignDetail] 인플루언서 데이터 로드 실패:', err);
+      } finally {
+        setInfluencerLoading(false);
+      }
+    };
+
+    loadInfluencersAndMatch();
+  }, [applicantsRaw]);
+
   return (
     <div className="space-y-6">
+      {/* 캠페인 요약 헤더 */}
+      <CampaignSummaryHeader
+        campaign={campaign}
+        applicantCount={applicantsRaw.length}
+      />
+
       {/* Sub Navigation */}
       <div className="flex items-center justify-between bg-white rounded-xl p-1.5 shadow-sm border border-slate-100">
         <div className="flex items-center gap-2">
           {[
             { key: 'performance', label: '캠페인 성과', icon: BarChart3 },
+            { key: 'applicants', label: '신청자 리스트', icon: Users },
             { key: 'seeding', label: '참여 인플루언서', icon: Package },
             { key: 'content', label: '콘텐츠 갤러리', icon: Image },
           ].map(({ key, label, icon: Icon }) => (
@@ -1325,6 +1403,22 @@ function CampaignDetailView({
         <div className="lg:col-span-2">
           {activeSubTab === 'performance' && (
             <CampaignPerformance campaign={campaign} contents={notionContent} loading={detailLoading} />
+          )}
+          {activeSubTab === 'applicants' && (
+            influencerLoading ? (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex items-center justify-center h-32">
+                <Loader2 className="w-6 h-6 animate-spin mr-2 text-orange-600" />
+                <span className="text-slate-500">인플루언서 데이터 매칭 중...</span>
+              </div>
+            ) : (
+              <ApplicantListTab
+                matchedInfluencers={matchedInfluencers}
+                onAddToSeeding={(newItems) => {
+                  setNotionSeeding(prev => [...prev, ...newItems]);
+                }}
+                campaignId={campaign.id}
+              />
+            )
           )}
           {activeSubTab === 'seeding' && (
             detailLoading ? (

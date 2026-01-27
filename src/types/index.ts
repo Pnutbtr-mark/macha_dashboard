@@ -271,3 +271,53 @@ export interface CampaignHierarchy {
   // 광고세트 목록
   adSets: AdSetWithPerformance[];
 }
+
+// ============================================
+// 신청자 관리 타입
+// ============================================
+
+// 신청자 상태
+export type ApplicantStatus =
+  | 'pending'      // 대기중 (신규 접수)
+  | 'reviewing'    // 검토중
+  | 'selected'     // 선택됨 (기업주가 선택)
+  | 'rejected'     // 불합격
+  | 'converted';   // 참여 인플루언서로 전환됨
+
+// 웰링크 가입 매칭 상태
+export type WellinkMatchStatus =
+  | 'not_checked'  // 미확인
+  | 'matched'      // 매칭됨 (기존 인플루언서 DB에서 발견)
+  | 'not_found';   // 미가입 (인플루언서 DB에 없음)
+
+// 신청자 인터페이스
+export interface Applicant {
+  id: string;
+  campaignId: string;
+
+  // 기본 정보 (우피 폼에서 수집)
+  name: string;
+  phoneNumber: string;
+  email?: string;
+  instagramHandle?: string;
+
+  // 추가 정보
+  followerCount?: number;
+  category?: string[];
+  introduction?: string;
+  portfolioUrl?: string;
+
+  // 매칭 정보
+  wellinkMatchStatus: WellinkMatchStatus;
+  matchedInfluencerId?: string;
+
+  // 상태 관리
+  status: ApplicantStatus;
+  isSelected: boolean;
+
+  // 메타데이터
+  appliedAt: string;
+  reviewedAt?: string;
+  selectedAt?: string;
+  notes?: string;
+}
