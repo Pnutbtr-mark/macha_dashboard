@@ -253,7 +253,7 @@ export async function fetchCampaignsWithDetail(
   queryParams.append('size', String(size));
   queryParams.append('direction', direction);
 
-  const url = `${baseUrl}/api/v1/campaigns/list-with-detail?${queryParams.toString()}`;
+  const url = `${baseUrl}/api/v1/dash-campaigns/list-with-detail?${queryParams.toString()}`;
   console.log('[CampaignAPI] Fetching campaigns with detail:', url);
 
   const response = await fetch(url, {
