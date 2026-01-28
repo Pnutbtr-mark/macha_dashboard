@@ -18,17 +18,29 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await notion.databases.query({
-      database_id: DB_IDS.applicants,
-      sorts: [
-        {
-          property: '접수 일시',
-          direction: 'descending',
-        },
-      ],
-    });
+    // 페이지네이션으로 모든 결과 수집 (Notion API는 최대 100개씩 반환)
+    let allResults = [];
+    let hasMore = true;
+    let nextCursor = undefined;
 
-    const applicants = response.results.map((page) => {
+    while (hasMore) {
+      const response = await notion.databases.query({
+        database_id: DB_IDS.applicants,
+        sorts: [
+          {
+            property: '접수 일시',
+            direction: 'descending',
+          },
+        ],
+        start_cursor: nextCursor,
+      });
+
+      allResults = allResults.concat(response.results);
+      hasMore = response.has_more;
+      nextCursor = response.next_cursor;
+    }
+
+    const applicants = allResults.map((page) => {
       const props = page.properties;
 
       // 접수 일시 추출
