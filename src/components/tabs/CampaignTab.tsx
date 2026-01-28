@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getProxiedImageUrl } from '../../utils/imageProxy';
 
 // 사계단백 계정 ID 목록 (이 계정만 신청자 데이터 로드)
 const SAGYEDANBAEK_ACCOUNTS = ['w365299', 'ehddls5151@'];
@@ -17,9 +16,6 @@ import {
   MessageCircle,
   ExternalLink,
   Package,
-  Clock,
-  CheckCircle2,
-  XCircle,
   AlertCircle,
   Sparkles,
   Image,
@@ -32,10 +28,9 @@ import {
   Loader2,
   RefreshCw,
   Users,
-  X,
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
-import { formatNumber, formatCurrency, formatDateTime, formatPercent } from '../../utils/formatters';
+import { formatNumber, formatDateTime, formatPercent } from '../../utils/formatters';
 import {
   fetchCampaignsWithDetail,
   fetchCampaignResults,
@@ -46,7 +41,7 @@ import {
   type CampaignWithDetail,
 } from '../../services/notionApi';
 import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
-import type { DashInfluencerWithDetail, DashInfluencerPost } from '../../types/metaDash';
+import type { DashInfluencerWithDetail } from '../../types/metaDash';
 import type {
   Influencer,
   SeedingItem,
@@ -81,395 +76,7 @@ interface CampaignListItem {
   status: string; // Notion에서 '진행중', '완료' 등 한국어 상태값이 올 수 있음
 }
 
-// Seeding Status Badge
-function SeedingStatusBadge({ status }: { status: SeedingStatus | string }) {
-  const config: Record<string, { icon: typeof Clock; color: string; label: string }> = {
-    // 영어 상태값
-    pending: { icon: Clock, color: 'bg-slate-100 text-slate-600', label: '대기중' },
-    contacted: { icon: AlertCircle, color: 'bg-amber-100 text-amber-700', label: '컨택중' },
-    confirmed: { icon: CheckCircle2, color: 'bg-blue-100 text-blue-700', label: '확정' },
-    completed: { icon: CheckCircle2, color: 'bg-emerald-100 text-emerald-700', label: '완료' },
-    cancelled: { icon: XCircle, color: 'bg-red-100 text-red-600', label: '취소' },
-    // 한국어 상태값 (Notion에서 올 수 있음)
-    '대기중': { icon: Clock, color: 'bg-slate-100 text-slate-600', label: '대기중' },
-    '컨택중': { icon: AlertCircle, color: 'bg-amber-100 text-amber-700', label: '컨택중' },
-    '확정': { icon: CheckCircle2, color: 'bg-blue-100 text-blue-700', label: '확정' },
-    '완료': { icon: CheckCircle2, color: 'bg-emerald-100 text-emerald-700', label: '완료' },
-    '취소': { icon: XCircle, color: 'bg-red-100 text-red-600', label: '취소' },
-    '진행중': { icon: Clock, color: 'bg-emerald-100 text-emerald-700', label: '진행중' },
-    '진행': { icon: Clock, color: 'bg-emerald-100 text-emerald-700', label: '진행중' },
-  };
-
-  // fallback for unknown status
-  const statusConfig = config[status] || { icon: Clock, color: 'bg-slate-100 text-slate-600', label: status || '알 수 없음' };
-  const { icon: Icon, color, label } = statusConfig;
-
-  return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${color}`}>
-      <Icon size={12} />
-      {label}
-    </span>
-  );
-}
-
-// 참여 인플루언서 테이블 행 컴포넌트 (신청자 리스트 UI와 동일)
-function SeedingTableRow({ item, onRemove }: { item: DashInfluencerWithDetail; onRemove?: () => void }) {
-  const influencer = item.dashInfluencer;
-  const detail = item.dashInfluencerDetail;
-  const latestPosts = detail?.latestPosts?.slice(0, 3) || [];
-
-  // 평균 좋아요/댓글 계산
-  const allPosts = detail?.latestPosts || [];
-  const avgLikes = allPosts.length > 0
-    ? Math.round(allPosts.reduce((sum, p) => sum + (p.likesCount || 0), 0) / allPosts.length)
-    : null;
-  const avgComments = allPosts.length > 0
-    ? Math.round(allPosts.reduce((sum, p) => sum + (p.commentsCount || 0), 0) / allPosts.length)
-    : null;
-
-  // 참여율 계산
-  const followerCount = detail?.followersCount || influencer.followerCount || 0;
-  const engagementRate = followerCount > 0 && avgLikes !== null && avgComments !== null
-    ? ((avgLikes + avgComments) / followerCount) * 100
-    : null;
-
-  // 최근 활동
-  const postsWithTimestamp = allPosts.filter(p => p.timestamp);
-  const latestPostDate = postsWithTimestamp.length > 0
-    ? new Date(Math.max(...postsWithTimestamp.map(p => new Date(p.timestamp).getTime())))
-    : null;
-  const formatDate = (date: Date | null) => {
-    if (!date) return '-';
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return '오늘';
-    if (diffDays === 1) return '어제';
-    if (diffDays < 7) return `${diffDays}일 전`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)}주 전`;
-    return `${Math.floor(diffDays / 30)}개월 전`;
-  };
-
-  // 프로필 이미지 컴포넌트
-  const ProfileImage = () => {
-    const [imageSrc, setImageSrc] = useState<string>(getProxiedImageUrl(detail?.profilePicUrl || influencer?.profileImageUrl) || '');
-    const [hasFailed, setHasFailed] = useState(false);
-    const initial = (influencer?.name ?? '?').charAt(0).toUpperCase();
-
-    if (hasFailed || !imageSrc) {
-      return (
-        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-bold text-lg">
-          {initial}
-        </div>
-      );
-    }
-
-    return (
-      <img
-        src={imageSrc}
-        alt={influencer?.name ?? ''}
-        referrerPolicy="no-referrer"
-        className="w-12 h-12 rounded-full object-cover bg-slate-100"
-        onError={() => setHasFailed(true)}
-      />
-    );
-  };
-
-  // 게시물 썸네일 컴포넌트
-  const PostThumbnail = ({ post, idx }: { post: DashInfluencerPost; idx: number }) => {
-    const [imageSrc, setImageSrc] = useState<string>(getProxiedImageUrl(post.displayUrl || post.images?.[0]) || '');
-    const [hasFailed, setHasFailed] = useState(false);
-
-    if (hasFailed || !imageSrc) {
-      return (
-        <div className="w-16 h-16 bg-slate-200 rounded-lg flex items-center justify-center">
-          <span className="text-slate-400 text-xs">없음</span>
-        </div>
-      );
-    }
-
-    return (
-      <img
-        src={imageSrc}
-        alt={`Post ${idx + 1}`}
-        referrerPolicy="no-referrer"
-        className="w-16 h-16 object-cover rounded-lg"
-        onError={() => setHasFailed(true)}
-      />
-    );
-  };
-
-  return (
-    <tr className="border-b border-slate-100 hover:bg-primary-50/50 transition-colors">
-      {/* 프로필 */}
-      <td className="px-4 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex-shrink-0">
-            <ProfileImage />
-          </div>
-          <div className="min-w-0">
-            <div className="font-semibold text-slate-900 truncate">{influencer?.name ?? '-'}</div>
-            {influencer?.category && influencer.category.length > 0 && (
-              <div className="text-xs text-slate-500 truncate">
-                {influencer.category.join(' · ')}
-              </div>
-            )}
-            <div className="flex items-center gap-2 mt-1">
-              <button className="p-1 hover:bg-slate-100 rounded transition-colors">
-                <Heart size={16} className="text-slate-400 hover:text-red-500" />
-              </button>
-              <a
-                href={`https://instagram.com/${influencer.username?.trim()}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-2 py-1 bg-primary-500 hover:bg-primary-600 text-white text-xs rounded-md transition-colors"
-              >
-                <ExternalLink size={12} />
-              </a>
-              {onRemove && (
-                <button
-                  onClick={onRemove}
-                  className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-600 text-xs rounded-md transition-colors"
-                  title="신청자 리스트로 되돌리기"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </td>
-
-      {/* 팔로워수 */}
-      <td className="px-4 py-4 text-sm text-slate-700 font-medium">
-        <div className="flex items-center justify-end gap-1">
-          <span className="tabular-nums">{formatNumber(detail?.followersCount || influencer.followerCount)}</span>
-        </div>
-      </td>
-
-      {/* 게시물수 */}
-      <td className="px-4 py-4 text-sm text-slate-700">
-        <div className="flex items-center justify-end gap-1">
-          <span className="tabular-nums">{formatNumber(detail?.postsCount)}</span>
-        </div>
-      </td>
-
-      {/* 평균 좋아요 */}
-      <td className="px-4 py-4 text-sm text-slate-700">
-        <div className="flex items-center justify-end gap-1">
-          <span className="tabular-nums">{formatNumber(avgLikes)}</span>
-        </div>
-      </td>
-
-      {/* 평균 댓글 */}
-      <td className="px-4 py-4 text-sm text-slate-700">
-        <div className="flex items-center justify-end gap-1">
-          <span className="tabular-nums">{formatNumber(avgComments)}</span>
-        </div>
-      </td>
-
-      {/* 참여율 */}
-      <td className="px-4 py-4 text-sm text-slate-700">
-        <div className="flex items-center justify-end gap-1">
-          <span className="tabular-nums">{engagementRate !== null ? formatPercent(engagementRate, 2) : '-'}</span>
-        </div>
-      </td>
-
-      {/* 최근 활동 */}
-      <td className="px-4 py-4 text-sm text-slate-700">
-        <div className="flex items-center justify-center gap-1">
-          {formatDate(latestPostDate)}
-        </div>
-      </td>
-
-      {/* 콘텐츠 썸네일 */}
-      <td className="px-4 py-4">
-        <div className="flex gap-1">
-          {latestPosts.map((post, idx) => (
-            <PostThumbnail key={post.id || idx} post={post} idx={idx} />
-          ))}
-          {latestPosts.length === 0 && (
-            <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-xs">
-              없음
-            </div>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-// Sub-components
-function SeedingManagement({
-  seedingList,
-  addedInfluencers = [],
-  onRemoveFromSeeding
-}: {
-  seedingList: SeedingItem[];
-  addedInfluencers?: DashInfluencerWithDetail[];
-  onRemoveFromSeeding?: (influencerId: string) => void;
-}) {
-  const [typeFilter, setTypeFilter] = useState<'all' | 'free' | 'paid'>('all');
-
-  // 신청자에서 추가된 인플루언서 ID 목록 (중복 제거용)
-  const addedInfluencerIds = new Set(addedInfluencers.map(inf => inf.dashInfluencer.id));
-  const addedInfluencerUsernames = new Set(addedInfluencers.map(inf => inf.dashInfluencer.username?.toLowerCase()));
-
-  // 신청자에서 추가된 인플루언서는 모두 'free' 타입
-  const filteredAddedInfluencers = addedInfluencers.filter(() => typeFilter === 'all' || typeFilter === 'free');
-
-  // 기존 시딩 리스트에서 이미 추가된 인플루언서 제외
-  const dedupedSeedingList = seedingList.filter(item => {
-    const handle = item.influencer.handle?.toLowerCase();
-    return !addedInfluencerIds.has(item.influencer.id) && !addedInfluencerUsernames.has(handle);
-  });
-  const filteredSeedingList = dedupedSeedingList.filter((item) => typeFilter === 'all' || item.type === typeFilter);
-
-  const totalCount = dedupedSeedingList.length + addedInfluencers.length;
-  const freeCount = dedupedSeedingList.filter((s) => s.type === 'free').length + addedInfluencers.length;
-  const paidCount = dedupedSeedingList.filter((s) => s.type === 'paid').length;
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">참여 인플루언서</h2>
-            <p className="text-sm text-slate-500">캠페인에 참여하는 인플루언서 목록입니다.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setTypeFilter('all')}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                typeFilter === 'all' ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              전체 ({totalCount})
-            </button>
-            <button
-              onClick={() => setTypeFilter('free')}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                typeFilter === 'free' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              무료 ({freeCount})
-            </button>
-            <button
-              onClick={() => setTypeFilter('paid')}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                typeFilter === 'paid' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              유료 ({paidCount})
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 테이블 */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        {(filteredAddedInfluencers.length > 0 || filteredSeedingList.length > 0) ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-52">
-                    프로필
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider w-24">
-                    <div className="flex items-center justify-end gap-1 w-full">팔로워수</div>
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider w-20">
-                    <div className="flex items-center justify-end gap-1 w-full">게시물수</div>
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider w-24">
-                    <div className="flex items-center justify-end gap-1 w-full">평균좋아요</div>
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider w-20">
-                    <div className="flex items-center justify-end gap-1 w-full">평균댓글</div>
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider w-20">
-                    <div className="flex items-center justify-end gap-1 w-full">참여율</div>
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider w-24">
-                    <div className="flex items-center justify-center gap-1 w-full">최근활동</div>
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap w-56">
-                    콘텐츠
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* 신청자에서 추가된 인플루언서 (상세 정보 있음) */}
-                {filteredAddedInfluencers.map((item) => (
-                  <SeedingTableRow
-                    key={item.dashInfluencer.id}
-                    item={item}
-                    onRemove={onRemoveFromSeeding ? () => onRemoveFromSeeding(item.dashInfluencer.id) : undefined}
-                  />
-                ))}
-                {/* 기존 시딩 리스트 (캠페인 결과에서 추출) - 간단 UI */}
-                {filteredSeedingList.map((item) => (
-                  <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        {item.influencer.thumbnail && item.influencer.thumbnail !== 'https://via.placeholder.com/100' ? (
-                          <img
-                            src={getProxiedImageUrl(item.influencer.thumbnail)}
-                            alt={item.influencer.name}
-                            referrerPolicy="no-referrer"
-                            className="w-12 h-12 rounded-full object-cover bg-slate-100"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              target.nextElementSibling?.classList.remove('hidden');
-                            }}
-                          />
-                        ) : null}
-                        <div className={`w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-lg font-bold ${item.influencer.thumbnail && item.influencer.thumbnail !== 'https://via.placeholder.com/100' ? 'hidden' : ''}`}>
-                          {item.influencer.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-slate-900">{item.influencer.name}</div>
-                          <div className="text-xs text-slate-500">{item.influencer.handle}</div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <a
-                              href={`https://instagram.com/${item.influencer.handle?.trim()}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2 py-1 bg-primary-500 hover:bg-primary-600 text-white text-xs rounded-md transition-colors"
-                            >
-                              <ExternalLink size={12} />
-                            </a>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-sm text-slate-700 text-right">{formatNumber(item.influencer.followers)}</td>
-                    <td className="px-4 py-4 text-sm text-slate-400 text-right">-</td>
-                    <td className="px-4 py-4 text-sm text-slate-700 text-right">{formatNumber(item.influencer.avgLikes)}</td>
-                    <td className="px-4 py-4 text-sm text-slate-700 text-right">{formatNumber(item.influencer.avgComments)}</td>
-                    <td className="px-4 py-4 text-sm text-slate-700 text-right">{item.influencer.engagementRate ? formatPercent(item.influencer.engagementRate, 2) : '-'}</td>
-                    <td className="px-4 py-4 text-sm text-slate-400 text-center">-</td>
-                    <td className="px-4 py-4">
-                      <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-xs">없음</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="p-12 text-center">
-            <Users size={48} className="mx-auto text-slate-300 mb-3" />
-            <div className="text-lg font-semibold text-slate-700 mb-1">참여 인플루언서가 없습니다</div>
-            <div className="text-sm text-slate-500">신청자 리스트에서 인플루언서를 추가해주세요.</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// ApplicantListTab 컴포넌트를 재사용하여 참여 인플루언서 UI 구현
 
 // 콘텐츠 카드 컴포넌트 - Instagram CDN 만료로 썸네일 대신 카드 UI 사용
 function ContentCard({ content }: { content: ContentItem }) {
@@ -1521,7 +1128,7 @@ function CampaignDetailView({
 }) {
   const { user } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'performance' | 'applicants' | 'seeding' | 'content'>('performance');
-  const [notionSeeding, setNotionSeeding] = useState<SeedingItem[]>([]);
+  const [_notionSeeding, setNotionSeeding] = useState<SeedingItem[]>([]);
   // 신청자 원본 데이터 (노션 API)
   const [applicantsRaw, setApplicantsRaw] = useState<ApplicantDto[]>([]);
   // 매칭된 인플루언서 (신청자 리스트에 표시)
