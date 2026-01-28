@@ -62,6 +62,9 @@ interface CampaignTabProps {
   loading: boolean;
 }
 
+// localStorage 키 (캠페인별 참여 인플루언서 저장)
+const SEEDING_STORAGE_KEY = (campaignId: string) => `seeding_${campaignId}`;
+
 // 캠페인 목록 타입 (Notion 데이터와 호환)
 interface CampaignListItem {
   id: string;
@@ -1313,6 +1316,33 @@ function CampaignDetailView({
     loadApplicantsAndMatch();
   }, [campaign.id]);
 
+  // localStorage에서 저장된 참여 인플루언서 ID 복원
+  useEffect(() => {
+    const saved = localStorage.getItem(SEEDING_STORAGE_KEY(campaign.id));
+    if (saved) {
+      try {
+        const savedIds = JSON.parse(saved) as string[];
+        console.log('[CampaignDetail] localStorage에서 복원:', savedIds.length, '명');
+        setAddedToSeedingIds(new Set(savedIds));
+      } catch (e) {
+        console.error('[CampaignDetail] localStorage 파싱 실패:', e);
+      }
+    }
+  }, [campaign.id]);
+
+  // matchedInfluencers 로드 후 addedInfluencers 복원
+  useEffect(() => {
+    if (matchedInfluencers.length > 0 && addedToSeedingIds.size > 0) {
+      const restoredInfluencers = matchedInfluencers.filter(
+        inf => addedToSeedingIds.has(inf.dashInfluencer.id)
+      );
+      if (restoredInfluencers.length > 0) {
+        console.log('[CampaignDetail] 참여 인플루언서 복원:', restoredInfluencers.length, '명');
+        setAddedInfluencers(restoredInfluencers);
+      }
+    }
+  }, [matchedInfluencers, addedToSeedingIds]);
+
   return (
     <div className="space-y-6">
       {/* 캠페인 요약 헤더 */}
@@ -1394,7 +1424,13 @@ function CampaignDetailView({
                   setNotionSeeding(prev => [...prev, ...newItems]);
                   // 추가된 인플루언서 ID를 기록하여 신청자 리스트에서 제외
                   const newIds = new Set(newItems.map(item => item.influencer.id));
-                  setAddedToSeedingIds(prev => new Set([...prev, ...newIds]));
+                  setAddedToSeedingIds(prev => {
+                    const updated = new Set([...prev, ...newIds]);
+                    // localStorage에 저장
+                    localStorage.setItem(SEEDING_STORAGE_KEY(campaign.id), JSON.stringify([...updated]));
+                    console.log('[CampaignDetail] localStorage 저장 (추가):', updated.size, '명');
+                    return updated;
+                  });
                   // 추가된 인플루언서의 상세 정보 유지 (UI 동일하게 표시용)
                   const addedItems = matchedInfluencers.filter(inf => newIds.has(inf.dashInfluencer.id));
                   setAddedInfluencers(prev => [...prev, ...addedItems]);
@@ -1420,6 +1456,9 @@ function CampaignDetailView({
                   setAddedToSeedingIds(prev => {
                     const newSet = new Set(prev);
                     influencerIds.forEach(id => newSet.delete(id));
+                    // localStorage에 저장
+                    localStorage.setItem(SEEDING_STORAGE_KEY(campaign.id), JSON.stringify([...newSet]));
+                    console.log('[CampaignDetail] localStorage 저장 (제거):', newSet.size, '명');
                     return newSet;
                   });
                   setAddedInfluencers(prev => prev.filter(inf => !influencerIds.includes(inf.dashInfluencer.id)));
