@@ -100,6 +100,36 @@ export interface CreateCampaignRequest {
   status: string;
 }
 
+// 캠페인 통합 조회 API 관련 타입
+export interface FetchCampaignsWithDetailParams {
+  page?: number;
+  size?: number;
+  direction?: 'ASC' | 'DESC';
+}
+
+export interface CampaignWithDetail {
+  campaign: CampaignDto;
+  campaignResults: CampaignResultDto[];
+}
+
+export interface PageResponse<T> {
+  content: T[];
+  totalPages: number;
+  totalElements: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+  empty: boolean;
+}
+
+export interface CampaignWithDetailApiResponse {
+  responseName: string;
+  responseCode: number;
+  message: string;
+  result: PageResponse<CampaignWithDetail>[];
+}
+
 // ============================================
 // API 함수
 // ============================================
@@ -208,4 +238,66 @@ export async function syncCampaignData(campaignId: string, time?: string): Promi
 
   const data = await response.json();
   console.log('[CampaignAPI] Sync result:', data);
+}
+
+// 캠페인 목록 + 상세 통합 조회 (페이징 지원)
+export async function fetchCampaignsWithDetail(
+  params: FetchCampaignsWithDetailParams = {}
+): Promise<PageResponse<CampaignWithDetail>> {
+  const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || 'https://matcha.pnutbutter.kr';
+
+  const { page = 1, size = 10, direction = 'DESC' } = params;
+
+  const queryParams = new URLSearchParams();
+  queryParams.append('page', String(page));
+  queryParams.append('size', String(size));
+  queryParams.append('direction', direction);
+
+  const url = `${baseUrl}/api/v1/campaigns/list-with-detail?${queryParams.toString()}`;
+  console.log('[CampaignAPI] Fetching campaigns with detail:', url);
+
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`캠페인 통합 조회 실패: ${response.status}`);
+  }
+
+  const data: CampaignWithDetailApiResponse = await response.json();
+  console.log('[CampaignAPI] Campaigns with detail response:', data);
+
+  // result[0]에 PageResponse가 있는 구조
+  return data.result?.[0] || {
+    content: [],
+    totalElements: 0,
+    totalPages: 0,
+    number: 0,
+    size,
+    first: true,
+    last: true,
+    empty: true,
+  };
+}
+
+// 통합 API 응답을 UI 타입으로 변환하는 유틸리티 함수
+export function convertCampaignWithDetailToNotionCampaign(item: CampaignWithDetail): NotionCampaign {
+  const { campaign } = item;
+
+  return {
+    id: campaign.id,
+    name: campaign.name,
+    category: campaign.category,
+    campaignType: campaign.type as '협찬' | '유료',
+    productType: campaign.product,
+    participants: campaign.participantCount,
+    startDate: campaign.startDate,
+    endDate: campaign.endDate,
+    manager: campaign.manager,
+    status: campaign.status,
+    budget: 0,
+    spent: 0,
+  };
 }

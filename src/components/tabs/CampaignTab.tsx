@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
 import {
   ResponsiveContainer,
@@ -32,7 +31,15 @@ import {
 } from 'lucide-react';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { formatNumber, formatCurrency, formatDateTime, formatPercent } from '../../utils/formatters';
-import { fetchCampaigns, fetchCampaignResults, syncCampaignData, type NotionCampaign, type CampaignResultDto } from '../../services/notionApi';
+import {
+  fetchCampaignsWithDetail,
+  fetchCampaignResults,
+  syncCampaignData,
+  convertCampaignWithDetailToNotionCampaign,
+  type NotionCampaign,
+  type CampaignResultDto,
+  type CampaignWithDetail,
+} from '../../services/notionApi';
 import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
 import type { DashInfluencerWithDetail } from '../../types/metaDash';
 import type {
@@ -901,11 +908,20 @@ function CampaignPerformance({
 function CampaignListTable({
   campaigns,
   loading,
-  onSelectCampaign
+  onSelectCampaign,
+  pagination,
+  onPageChange,
 }: {
   campaigns: CampaignListItem[];
   loading: boolean;
   onSelectCampaign: (campaign: CampaignListItem) => void;
+  pagination: {
+    page: number;
+    size: number;
+    totalPages: number;
+    totalElements: number;
+  };
+  onPageChange: (page: number) => void;
 }) {
   const [statusFilter, setStatusFilter] = useState<'active' | 'completed'>('active');
 
@@ -1039,6 +1055,34 @@ function CampaignListTable({
           </tbody>
         </table>
       </div>
+
+      {/* 페이지네이션 */}
+      {pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+          <div className="text-sm text-slate-500">
+            총 {pagination.totalElements}개 캠페인
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onPageChange(pagination.page - 1)}
+              disabled={pagination.page === 1}
+              className="px-3 py-1.5 text-sm bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              이전
+            </button>
+            <span className="text-sm text-slate-600 px-2">
+              {pagination.page} / {pagination.totalPages}
+            </span>
+            <button
+              onClick={() => onPageChange(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages}
+              className="px-3 py-1.5 text-sm bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              다음
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1192,9 +1236,11 @@ function matchApplicantsToInfluencers(
 // 캠페인 상세 뷰 컴포넌트
 function CampaignDetailView({
   campaign,
+  initialResults,
   onBack: _onBack,
 }: {
   campaign: CampaignListItem;
+  initialResults?: CampaignResultDto[];
   onBack: () => void;
 }) {
   const [activeSubTab, setActiveSubTab] = useState<'performance' | 'applicants' | 'seeding' | 'content'>('performance');
@@ -1282,8 +1328,15 @@ function CampaignDetailView({
       setDetailLoading(true);
       console.log('[CampaignDetail] Loading detail data for campaign:', campaign.id);
 
-      // 캠페인 결과 데이터 로드 (서버 API)
-      const resultsData = await fetchCampaignResults(campaign.id).catch(() => []);
+      // initialResults가 있으면 사용, 없으면 API 호출
+      let resultsData: CampaignResultDto[];
+      if (initialResults && initialResults.length > 0) {
+        console.log('[CampaignDetail] Using initial results from list API');
+        resultsData = initialResults;
+      } else {
+        console.log('[CampaignDetail] Fetching campaign results from API');
+        resultsData = await fetchCampaignResults(campaign.id).catch(() => []);
+      }
 
       console.log('[CampaignDetail] Campaign results:', resultsData);
 
@@ -1479,40 +1532,81 @@ export function CampaignTab({
   aiAnalysis: _aiAnalysis,
   loading: _loading,
 }: CampaignTabProps) {
-  const { user } = useAuth();
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignListItem | null>(null);
+  const [selectedCampaignResults, setSelectedCampaignResults] = useState<CampaignResultDto[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignListItem[]>([]);
+  const [campaignResultsMap, setCampaignResultsMap] = useState<Map<string, CampaignResultDto[]>>(new Map());
+  const [pagination, setPagination] = useState({
+    page: 1,
+    size: 10,
+    totalPages: 0,
+    totalElements: 0,
+  });
   const [notionLoading, setNotionLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 캠페인 데이터 로드
+  // 캠페인 데이터 로드 (통합 API 사용)
+  const loadCampaigns = async (page: number = 1) => {
+    try {
+      setNotionLoading(true);
+      setError(null);
+      console.log('[CampaignTab] Starting to load campaigns with detail, page:', page);
+
+      const result = await fetchCampaignsWithDetail({
+        page,
+        size: pagination.size,
+        direction: 'DESC',
+      });
+      console.log('[CampaignTab] Loaded campaigns with detail:', result);
+
+      // 캠페인 목록 변환
+      const convertedCampaigns = result.content.map((item: CampaignWithDetail) => {
+        const notionCampaign = convertCampaignWithDetailToNotionCampaign(item);
+        return convertNotionCampaign(notionCampaign);
+      });
+      setCampaigns(convertedCampaigns);
+
+      // 결과 데이터를 Map으로 캐싱
+      const resultsMap = new Map<string, CampaignResultDto[]>();
+      result.content.forEach((item: CampaignWithDetail) => {
+        resultsMap.set(item.campaign.id, item.campaignResults);
+      });
+      setCampaignResultsMap(resultsMap);
+
+      // 페이징 정보 업데이트
+      setPagination(prev => ({
+        ...prev,
+        page,
+        totalPages: result.totalPages,
+        totalElements: result.totalElements,
+      }));
+
+      console.log('[CampaignTab] Set campaigns:', convertedCampaigns.length);
+    } catch (err) {
+      console.error('[CampaignTab] 캠페인 로드 실패:', err);
+      const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류';
+      setError(`캠페인 데이터를 불러오는데 실패했습니다: ${errorMessage}`);
+    } finally {
+      setNotionLoading(false);
+    }
+  };
+
+  // 페이지 변경 핸들러
+  const handlePageChange = (newPage: number) => {
+    loadCampaigns(newPage);
+  };
+
+  // 캠페인 선택 핸들러
+  const handleSelectCampaign = (campaign: CampaignListItem) => {
+    const results = campaignResultsMap.get(campaign.id) || [];
+    setSelectedCampaignResults(results);
+    setSelectedCampaign(campaign);
+  };
+
+  // 초기 데이터 로드
   useEffect(() => {
-    const loadCampaigns = async () => {
-      if (!user?.id) {
-        setNotionLoading(false);
-        return;
-      }
-
-      try {
-        setNotionLoading(true);
-        setError(null);
-        console.log('[CampaignTab] Starting to load campaigns for dashMemberId:', user.id);
-        const notionCampaigns = await fetchCampaigns(user.id);
-        console.log('[CampaignTab] Loaded campaigns:', notionCampaigns);
-        const convertedCampaigns = notionCampaigns.map(convertNotionCampaign);
-        setCampaigns(convertedCampaigns);
-        console.log('[CampaignTab] Set campaigns:', convertedCampaigns.length);
-      } catch (err) {
-        console.error('[CampaignTab] 캠페인 로드 실패:', err);
-        const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류';
-        setError(`캠페인 데이터를 불러오는데 실패했습니다: ${errorMessage}`);
-      } finally {
-        setNotionLoading(false);
-      }
-    };
-
-    loadCampaigns();
-  }, [user?.id]);
+    loadCampaigns(1);
+  }, []);
 
   // 에러 표시
   if (error) {
@@ -1534,6 +1628,7 @@ export function CampaignTab({
     return (
       <CampaignDetailView
         campaign={selectedCampaign}
+        initialResults={selectedCampaignResults}
         onBack={() => setSelectedCampaign(null)}
       />
     );
@@ -1545,7 +1640,9 @@ export function CampaignTab({
       <CampaignListTable
         campaigns={campaigns}
         loading={notionLoading}
-        onSelectCampaign={setSelectedCampaign}
+        onSelectCampaign={handleSelectCampaign}
+        pagination={pagination}
+        onPageChange={handlePageChange}
       />
     </div>
   );
