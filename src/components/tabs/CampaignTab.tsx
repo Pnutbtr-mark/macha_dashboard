@@ -1137,7 +1137,20 @@ function CampaignDetailView({
   // 매칭된 인플루언서 (신청자 리스트에 표시)
   const [matchedInfluencers, setMatchedInfluencers] = useState<DashInfluencerWithDetail[]>([]);
   // 참여자로 추가된 인플루언서 ID 목록 (신청자 리스트에서 필터링용)
-  const [addedToSeedingIds, setAddedToSeedingIds] = useState<Set<string>>(new Set());
+  // localStorage에서 초기값 로드
+  const [addedToSeedingIds, setAddedToSeedingIds] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem(SEEDING_STORAGE_KEY(campaign.id));
+    if (saved) {
+      try {
+        const savedIds = JSON.parse(saved) as string[];
+        console.log('[CampaignDetail] 초기 로드:', savedIds.length, '명');
+        return new Set(savedIds);
+      } catch (e) {
+        console.error('[CampaignDetail] localStorage 파싱 실패:', e);
+      }
+    }
+    return new Set();
+  });
   // 신청자에서 참여자로 추가된 인플루언서 (상세 정보 유지)
   const [addedInfluencers, setAddedInfluencers] = useState<DashInfluencerWithDetail[]>([]);
   const [notionContent, setNotionContent] = useState<ContentItem[]>([]);
@@ -1314,20 +1327,6 @@ function CampaignDetailView({
 
   useEffect(() => {
     loadApplicantsAndMatch();
-  }, [campaign.id]);
-
-  // localStorage에서 저장된 참여 인플루언서 ID 복원
-  useEffect(() => {
-    const saved = localStorage.getItem(SEEDING_STORAGE_KEY(campaign.id));
-    if (saved) {
-      try {
-        const savedIds = JSON.parse(saved) as string[];
-        console.log('[CampaignDetail] localStorage에서 복원:', savedIds.length, '명');
-        setAddedToSeedingIds(new Set(savedIds));
-      } catch (e) {
-        console.error('[CampaignDetail] localStorage 파싱 실패:', e);
-      }
-    }
   }, [campaign.id]);
 
   // matchedInfluencers 로드 후 addedInfluencers 복원
