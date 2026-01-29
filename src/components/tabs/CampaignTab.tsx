@@ -1528,6 +1528,7 @@ export function CampaignTab({
   aiAnalysis: _aiAnalysis,
   loading: _loading,
 }: CampaignTabProps) {
+  const { user } = useAuth();
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignListItem | null>(null);
   const [selectedCampaignResults, setSelectedCampaignResults] = useState<CampaignResultDto[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignListItem[]>([]);
@@ -1552,6 +1553,7 @@ export function CampaignTab({
         page,
         size: pagination.size,
         direction: 'DESC',
+        dashMemberId: user?.id,
       });
       console.log('[CampaignTab] Loaded campaigns with detail:', result);
 

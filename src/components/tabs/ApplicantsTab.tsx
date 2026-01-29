@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Loader2,
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import { fetchCampaignsWithDetail, fetchApplicants, type CampaignDto, type ApplicantDto } from '../../services/notionApi';
 import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
 import type { DashInfluencerWithDetail } from '../../types/metaDash';
@@ -259,6 +260,8 @@ function TableRow({ item }: { item: ApplicantWithCampaign }) {
 
 // 메인 컴포넌트
 export function ApplicantsTab() {
+  const { user } = useAuth();
+
   // 데이터 상태
   const [campaigns, setCampaigns] = useState<CampaignDto[]>([]);
   const [applicants, setApplicants] = useState<ApplicantWithCampaign[]>([]);
@@ -283,7 +286,7 @@ export function ApplicantsTab() {
       setLoading(true);
       try {
         // 1. 캠페인 목록 조회
-        const campaignsResult = await fetchCampaignsWithDetail({ page: 1, size: 100 });
+        const campaignsResult = await fetchCampaignsWithDetail({ page: 1, size: 100, dashMemberId: user?.id });
         const campaignList = campaignsResult.content.map(c => c.campaign);
         setCampaigns(campaignList);
 

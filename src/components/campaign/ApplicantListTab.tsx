@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Search, ChevronUp, ChevronDown, Heart, ExternalLink, Users, UserPlus, X, Instagram, MessageCircle, Calendar, Play, Eye, RefreshCw, Loader2 } from 'lucide-react';
-import type { DashInfluencerWithDetail, DashInfluencerPost, DashInfluencer, DashInfluencerDetail } from '../../types/metaDash';
+import { Search, ChevronUp, ChevronDown, Heart, ExternalLink, Users, UserPlus, X, Instagram, MessageCircle, Calendar, Play, Eye, RefreshCw, Loader2, Clock, CheckCircle } from 'lucide-react';
+import type { DashInfluencerWithDetail, DashInfluencerPost, DashInfluencer, DashInfluencerDetail, DashCampaignInfluencerParticipate } from '../../types/metaDash';
 import type { SeedingItem, Influencer } from '../../types';
 import { getProxiedImageUrl, isInstagramCdnUrl, getInstagramProfileImageUrl, getInstagramPostImageUrl } from '../../utils/imageProxy';
 import { formatNumber as formatNumberBase, formatPercent } from '../../utils/formatters';
@@ -533,6 +533,10 @@ interface ApplicantListTabProps {
   isSeeding?: boolean;
   // 되돌리기 콜백 (isSeeding 모드에서 사용)
   onRemoveFromSeeding?: (influencerIds: string[]) => void;
+  // 서버에서 가져온 참여자 데이터 (상태 정보 포함)
+  serverParticipants?: DashCampaignInfluencerParticipate[];
+  // 상태 변경 콜백
+  onStatusChange?: (influencerId: string, newStatus: 'WAIT' | 'ACTIVE') => Promise<void>;
 }
 
 const PAGE_SIZE = 15;
@@ -548,12 +552,14 @@ function TableHeader({
   onSort,
   isAllSelected,
   onSelectAll,
+  showStatusColumn = false,
 }: {
   sortField: SortField | null;
   sortDirection: SortDirection;
   onSort: (field: SortField) => void;
   isAllSelected: boolean;
   onSelectAll: () => void;
+  showStatusColumn?: boolean;
 }) {
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronUp size={14} className="text-slate-300" />;
@@ -612,6 +618,11 @@ function TableHeader({
         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap w-56">
           콘텐츠
         </th>
+        {showStatusColumn && (
+          <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap w-24">
+            상태
+          </th>
+        )}
       </tr>
     </thead>
   );
@@ -622,13 +633,20 @@ function TableRow({
   item,
   isSelected,
   onSelect,
-  onClick
+  onClick,
+  showStatusColumn = false,
+  participantStatus,
+  onStatusChange,
 }: {
   item: DashInfluencerWithDetail;
   isSelected: boolean;
   onSelect: () => void;
   onClick: () => void;
+  showStatusColumn?: boolean;
+  participantStatus?: string;
+  onStatusChange?: (newStatus: 'WAIT' | 'ACTIVE') => void;
 }) {
+  const [statusChanging, setStatusChanging] = useState(false);
   const influencer = item.dashInfluencer;
   const detail = item.dashInfluencerDetail;
   const latestPosts = detail?.latestPosts?.slice(0, 3) || [];
@@ -791,6 +809,61 @@ function TableRow({
           )}
         </div>
       </td>
+
+      {/* 상태 컬럼 */}
+      {showStatusColumn && (
+        <td className="px-4 py-4 w-24" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-col items-center gap-2">
+            {/* 상태 배지 */}
+            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+              participantStatus === 'ACTIVE'
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-amber-100 text-amber-700'
+            }`}>
+              {participantStatus === 'ACTIVE' ? (
+                <><CheckCircle size={12} /> 참여중</>
+              ) : (
+                <><Clock size={12} /> 대기중</>
+              )}
+            </span>
+
+            {/* 상태 변경 버튼 */}
+            {onStatusChange && (
+              <button
+                onClick={async () => {
+                  if (statusChanging) return;
+                  setStatusChanging(true);
+                  try {
+                    const newStatus = participantStatus === 'ACTIVE' ? 'WAIT' : 'ACTIVE';
+                    await onStatusChange(newStatus);
+                  } catch (error) {
+                    console.error('상태 변경 실패:', error);
+                    alert('상태 변경에 실패했습니다.');
+                  } finally {
+                    setStatusChanging(false);
+                  }
+                }}
+                disabled={statusChanging}
+                className={`text-xs px-2 py-1 rounded transition-colors ${
+                  statusChanging
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : participantStatus === 'ACTIVE'
+                      ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                      : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                }`}
+              >
+                {statusChanging ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : participantStatus === 'ACTIVE' ? (
+                  '대기로 변경'
+                ) : (
+                  '참여로 변경'
+                )}
+              </button>
+            )}
+          </div>
+        </td>
+      )}
     </tr>
   );
 }
@@ -891,7 +964,17 @@ export function ApplicantListTab({
   campaignId,
   isSeeding = false,
   onRemoveFromSeeding,
+  serverParticipants = [],
+  onStatusChange,
 }: ApplicantListTabProps) {
+  // 상태 필터 (참여 인플루언서 모드에서만 사용)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'WAIT' | 'ACTIVE'>('all');
+
+  // 인플루언서 ID로 참여 상태 조회
+  const getParticipantStatus = useCallback((influencerId: string): string => {
+    const participant = serverParticipants.find(p => p.dashInfluencer.id === influencerId);
+    return participant?.status || 'WAIT';
+  }, [serverParticipants]);
   // 필터 상태
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
@@ -917,19 +1000,32 @@ export function ApplicantListTab({
     }
   };
 
-  // 필터링
+  // 필터링 (검색어 + 상태 필터)
   const filteredInfluencers = useMemo(() => {
-    if (!searchQuery) return matchedInfluencers;
+    let result = matchedInfluencers;
 
-    const query = searchQuery.toLowerCase();
-    return matchedInfluencers.filter(item => {
-      const inf = item.dashInfluencer;
-      return (
-        (inf.name?.toLowerCase().includes(query) ?? false) ||
-        (inf.username?.toLowerCase().includes(query) ?? false)
-      );
-    });
-  }, [matchedInfluencers, searchQuery]);
+    // 검색어 필터
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(item => {
+        const inf = item.dashInfluencer;
+        return (
+          (inf.name?.toLowerCase().includes(query) ?? false) ||
+          (inf.username?.toLowerCase().includes(query) ?? false)
+        );
+      });
+    }
+
+    // 상태 필터 (참여 인플루언서 모드에서만)
+    if (isSeeding && statusFilter !== 'all') {
+      result = result.filter(item => {
+        const status = getParticipantStatus(item.dashInfluencer.id);
+        return status === statusFilter;
+      });
+    }
+
+    return result;
+  }, [matchedInfluencers, searchQuery, isSeeding, statusFilter, getParticipantStatus]);
 
   // 정렬
   const sortedInfluencers = useMemo(() => {
@@ -1069,8 +1165,8 @@ export function ApplicantListTab({
           </div>
         </div>
 
-        {/* 검색 */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* 검색 및 상태 필터 */}
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 relative max-w-xs">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -1084,6 +1180,47 @@ export function ApplicantListTab({
               className="w-full pl-9 pr-4 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
             />
           </div>
+
+          {/* 상태 필터 (참여 인플루언서 모드에서만 표시) */}
+          {isSeeding && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">상태:</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { setStatusFilter('all'); setCurrentPage(0); }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    statusFilter === 'all'
+                      ? 'bg-slate-700 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  전체 ({matchedInfluencers.length})
+                </button>
+                <button
+                  onClick={() => { setStatusFilter('WAIT'); setCurrentPage(0); }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    statusFilter === 'WAIT'
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                  }`}
+                >
+                  <Clock size={14} className="inline mr-1" />
+                  대기 ({matchedInfluencers.filter(i => getParticipantStatus(i.dashInfluencer.id) === 'WAIT').length})
+                </button>
+                <button
+                  onClick={() => { setStatusFilter('ACTIVE'); setCurrentPage(0); }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    statusFilter === 'ACTIVE'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                  }`}
+                >
+                  <CheckCircle size={14} className="inline mr-1" />
+                  참여 ({matchedInfluencers.filter(i => getParticipantStatus(i.dashInfluencer.id) === 'ACTIVE').length})
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1107,6 +1244,7 @@ export function ApplicantListTab({
                 onSort={handleSort}
                 isAllSelected={isAllSelected}
                 onSelectAll={handleSelectAll}
+                showStatusColumn={isSeeding}
               />
               <tbody>
                 {paginatedInfluencers.map((item) => (
@@ -1116,6 +1254,9 @@ export function ApplicantListTab({
                     isSelected={selectedIds.has(item.dashInfluencer.id)}
                     onSelect={() => handleSelectInfluencer(item.dashInfluencer.id)}
                     onClick={() => handleRowClick(item)}
+                    showStatusColumn={isSeeding}
+                    participantStatus={getParticipantStatus(item.dashInfluencer.id)}
+                    onStatusChange={onStatusChange ? (newStatus) => onStatusChange(item.dashInfluencer.id, newStatus) : undefined}
                   />
                 ))}
               </tbody>
