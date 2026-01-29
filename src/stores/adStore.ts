@@ -4,6 +4,7 @@ import type {
   DailyAdData,
   CampaignPerformance,
   CampaignHierarchy,
+  PeriodType,
 } from '../types';
 import type {
   DashAdListItem,
@@ -52,9 +53,14 @@ interface AdState {
   // 현재 로드된 사용자 ID
   currentUserId: string | null;
 
+  // 현재 선택된 기간
+  period: PeriodType;
+  customDateRange: { start: string; end: string } | null;
+
   // 액션
   fetchAllData: (userId: string) => Promise<void>;
   refresh: (userId: string) => Promise<void>;
+  setPeriod: (period: PeriodType, customRange?: { start: string; end: string }) => void;
   reset: () => void;
 }
 
@@ -123,6 +129,8 @@ export const useAdStore = create<AdState>((set, get) => ({
   lastUpdated: null,
   serverSyncTime: null,
   currentUserId: null,
+  period: 'daily',
+  customDateRange: null,
 
   // 모든 광고 데이터 가져오기 (캐싱 적용)
   fetchAllData: async (userId: string) => {
@@ -145,8 +153,13 @@ export const useAdStore = create<AdState>((set, get) => ({
       // 서버 동기화 시간 추출
       const serverSyncTime = extractServerSyncTime(campaignDetails);
 
-      // 데이터 변환
-      const adPerformance = mapToAdPerformanceFromCampaignDetail(campaignDetails);
+      // 현재 선택된 기간으로 데이터 변환
+      const { period, customDateRange } = get();
+      const adPerformance = mapToAdPerformanceFromCampaignDetail(
+        campaignDetails,
+        period,
+        customDateRange || undefined
+      );
       const dailyAdData = mapToDailyAdDataFromCampaignDetail(campaignDetails);
       const campaignPerformance = mapToCampaignPerformanceFromCampaignDetail(campaignDetails);
       const campaignHierarchy = mapToCampaignHierarchyFromCampaignDetail(campaignDetails);
@@ -194,8 +207,13 @@ export const useAdStore = create<AdState>((set, get) => ({
       // 서버 동기화 시간 추출
       const serverSyncTime = extractServerSyncTime(campaignDetails);
 
-      // 데이터 변환
-      const adPerformance = mapToAdPerformanceFromCampaignDetail(campaignDetails);
+      // 현재 선택된 기간으로 데이터 변환
+      const { period, customDateRange } = get();
+      const adPerformance = mapToAdPerformanceFromCampaignDetail(
+        campaignDetails,
+        period,
+        customDateRange || undefined
+      );
       const dailyAdData = mapToDailyAdDataFromCampaignDetail(campaignDetails);
       const campaignPerformance = mapToCampaignPerformanceFromCampaignDetail(campaignDetails);
       const campaignHierarchy = mapToCampaignHierarchyFromCampaignDetail(campaignDetails);
@@ -221,6 +239,28 @@ export const useAdStore = create<AdState>((set, get) => ({
     }
   },
 
+  // 기간 변경 (API 재호출 없이 rawCampaignDetails로 재계산)
+  setPeriod: (newPeriod: PeriodType, customRange?: { start: string; end: string }) => {
+    const { rawCampaignDetails } = get();
+
+    // 기간 상태 업데이트
+    set({
+      period: newPeriod,
+      customDateRange: customRange || null,
+    });
+
+    // rawCampaignDetails가 있으면 재계산
+    if (rawCampaignDetails && rawCampaignDetails.length > 0) {
+      const adPerformance = mapToAdPerformanceFromCampaignDetail(
+        rawCampaignDetails,
+        newPeriod,
+        customRange
+      );
+
+      set({ adPerformance });
+    }
+  },
+
   // Store 리셋
   reset: () => {
     invalidateCache('ad');
@@ -236,6 +276,8 @@ export const useAdStore = create<AdState>((set, get) => ({
       lastUpdated: null,
       serverSyncTime: null,
       currentUserId: null,
+      period: 'daily',
+      customDateRange: null,
     });
   },
 }));

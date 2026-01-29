@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
-// 사계단백 계정 ID 목록 (이 계정만 신청자 데이터 로드)
-const SAGYEDANBAEK_ACCOUNTS = ['w365299', 'ehddls5151@'];
+// 신청자 관리 활성화 계정 목록 (이 계정만 신청자 데이터 로드)
+const APPLICANT_ENABLED_ACCOUNTS = ['w365299', 'ehddls5151@', 'sweatif'];
 import {
   ResponsiveContainer,
   AreaChart,
@@ -1159,8 +1159,8 @@ function CampaignDetailView({
   const [influencerLoading, setInfluencerLoading] = useState(true);
   const [applicantError, setApplicantError] = useState<string | null>(null);
 
-  // 사계단백 계정인지 확인 (로그인 아이디로 체크)
-  const isSagyedanbaekAccount = user?.loginId && SAGYEDANBAEK_ACCOUNTS.includes(user.loginId);
+  // 신청자 관리 활성화 계정인지 확인 (로그인 아이디로 체크)
+  const isApplicantEnabledAccount = user?.loginId && APPLICANT_ENABLED_ACCOUNTS.includes(user.loginId);
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -1290,9 +1290,9 @@ function CampaignDetailView({
       setInfluencerLoading(true);
       setApplicantError(null);
 
-      // 사계단백 계정이 아니면 빈 데이터로 설정
-      if (!isSagyedanbaekAccount) {
-        console.log('[CampaignDetail] 사계단백 계정이 아님 - 신청자 데이터 로드 스킵');
+      // 신청자 관리 활성화 계정이 아니면 빈 데이터로 설정
+      if (!isApplicantEnabledAccount) {
+        console.log('[CampaignDetail] 신청자 관리 비활성화 계정 - 신청자 데이터 로드 스킵');
         setApplicantsRaw([]);
         setMatchedInfluencers([]);
         setInfluencerLoading(false);
@@ -1301,8 +1301,8 @@ function CampaignDetailView({
 
       console.log('[CampaignDetail] Loading applicants and influencer data...');
 
-      // 1. 노션에서 신청자 데이터 로드
-      const applicants = await fetchApplicants();
+      // 1. 노션에서 신청자 데이터 로드 (loginId로 계정별 DB 조회)
+      const applicants = await fetchApplicants(user?.loginId);
       console.log('[CampaignDetail] Loaded applicants:', applicants.length);
       setApplicantsRaw(applicants);
 

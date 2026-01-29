@@ -23,7 +23,8 @@ import type {
   AdWithPerformance,
 } from '../types';
 import { calculateCtr, calculateCpc, calculateFrequency, calculateGrowth } from './metrics';
-import { getLocalDateString, formatDateToMMDD } from './dates';
+import { formatDateToMMDD, getDateRangeForPeriod, getLatestDateFromData } from './dates';
+import type { PeriodType } from '../types';
 import { getCountryName, mapMediaType, mapAdStatus } from './converters';
 import { getLatestInsightTime, findMetricValue, findInsightValue } from './extractors';
 
@@ -626,16 +627,12 @@ export function mapToCampaignHierarchy(
 
 // 9. 캠페인 상세 응답에서 광고 성과 변환
 // 캠페인 계층 함수(mapToCampaignHierarchyFromCampaignDetail)와 동일한 3단계 중복 제거 적용
+// period 파라미터로 기간별 데이터 필터링 지원
 export function mapToAdPerformanceFromCampaignDetail(
-  campaignDetails: DashAdCampaignDetailItem[]
+  campaignDetails: DashAdCampaignDetailItem[],
+  period: PeriodType = 'daily',
+  customRange?: { start: string; end: string }
 ): AdPerformance {
-  // 실제 오늘/어제 날짜 계산 (로컬 시간 기준)
-  const today = new Date();
-  const todayDate = getLocalDateString(today);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayDate = getLocalDateString(yesterday);
-
   // 1. 캠페인 중복 제거 (metaId 기준) - 캠페인 계층 함수와 동일
   const campaignMap = new Map<string, DashAdCampaignDetailItem>();
   for (const detail of campaignDetails) {
@@ -658,9 +655,31 @@ export function mapToAdPerformanceFromCampaignDetail(
     }
   }
 
-  // 2. 중복 제거된 캠페인에서 인사이트 추출 (광고세트/소재 중복 제거 포함)
-  let todaySpend = 0, todayReach = 0, todayClicks = 0, todayImpressions = 0, todayRoasWeighted = 0;
-  let yesterdaySpend = 0, yesterdayReach = 0, yesterdayClicks = 0, yesterdayImpressions = 0, yesterdayRoasWeighted = 0;
+  // 2. 데이터에서 모든 날짜 추출하여 가장 최근 날짜 찾기
+  const allDates: string[] = [];
+  for (const detail of campaignMap.values()) {
+    for (const adDetailObj of (detail.adDetailResponseObjs || [])) {
+      for (const child of (adDetailObj.adSetChildObjs || [])) {
+        const dateStr = child.dashAdAccountInsight?.time?.split('T')[0];
+        if (dateStr) allDates.push(dateStr);
+      }
+    }
+  }
+
+  // 가장 최근 데이터 날짜를 기준으로 사용 (동기화 지연 대응)
+  const latestDate = getLatestDateFromData(allDates);
+  const baseDate = latestDate ? new Date(latestDate + 'T12:00:00') : new Date();
+
+  // 기간별 날짜 범위 계산
+  const { startDate, endDate, prevStartDate, prevEndDate } = getDateRangeForPeriod(
+    period,
+    baseDate,
+    customRange
+  );
+
+  // 3. 중복 제거된 캠페인에서 인사이트 추출 (광고세트/소재 중복 제거 포함)
+  let currentSpend = 0, currentReach = 0, currentClicks = 0, currentImpressions = 0, currentRoasWeighted = 0;
+  let prevSpend = 0, prevReach = 0, prevClicks = 0, prevImpressions = 0, prevRoasWeighted = 0;
 
   for (const detail of campaignMap.values()) {
     const adDetailObjs = detail.adDetailResponseObjs || [];
@@ -687,7 +706,7 @@ export function mapToAdPerformanceFromCampaignDetail(
       }
     }
 
-    // 각 광고세트의 소재에서 오늘/어제 데이터 합산
+    // 각 광고세트의 소재에서 기간별 데이터 합산
     for (const adDetailObj of adSetMap.values()) {
       const childObjs = adDetailObj.adSetChildObjs || [];
 
@@ -708,47 +727,51 @@ export function mapToAdPerformanceFromCampaignDetail(
         if (!insight) continue;
 
         const insightDate = insight.time.split('T')[0];
-        if (insightDate === todayDate) {
-          todaySpend += insight.spend || 0;
-          todayReach += insight.reach || 0;
-          todayClicks += insight.clicks || 0;
-          todayImpressions += insight.impressions || 0;
-          todayRoasWeighted += extractRoasValue(insight.purchaseRoas) * (insight.spend || 0);
-        } else if (insightDate === yesterdayDate) {
-          yesterdaySpend += insight.spend || 0;
-          yesterdayReach += insight.reach || 0;
-          yesterdayClicks += insight.clicks || 0;
-          yesterdayImpressions += insight.impressions || 0;
-          yesterdayRoasWeighted += extractRoasValue(insight.purchaseRoas) * (insight.spend || 0);
+
+        // 현재 기간 범위 내 데이터
+        if (insightDate >= startDate && insightDate <= endDate) {
+          currentSpend += insight.spend || 0;
+          currentReach += insight.reach || 0;
+          currentClicks += insight.clicks || 0;
+          currentImpressions += insight.impressions || 0;
+          currentRoasWeighted += extractRoasValue(insight.purchaseRoas) * (insight.spend || 0);
+        }
+        // 이전 기간 범위 내 데이터
+        else if (insightDate >= prevStartDate && insightDate <= prevEndDate) {
+          prevSpend += insight.spend || 0;
+          prevReach += insight.reach || 0;
+          prevClicks += insight.clicks || 0;
+          prevImpressions += insight.impressions || 0;
+          prevRoasWeighted += extractRoasValue(insight.purchaseRoas) * (insight.spend || 0);
         }
       }
     }
   }
 
   // KPI 계산
-  const ctr = calculateCtr(todayClicks, todayImpressions);
-  const cpc = calculateCpc(todaySpend, todayClicks);
-  const frequency = calculateFrequency(todayImpressions, todayReach);
-  const roas = todaySpend > 0 ? todayRoasWeighted / todaySpend : 0;
+  const ctr = calculateCtr(currentClicks, currentImpressions);
+  const cpc = calculateCpc(currentSpend, currentClicks);
+  const frequency = calculateFrequency(currentImpressions, currentReach);
+  const roas = currentSpend > 0 ? currentRoasWeighted / currentSpend : 0;
 
-  const yesterdayCtr = calculateCtr(yesterdayClicks, yesterdayImpressions);
-  const yesterdayCpc = calculateCpc(yesterdaySpend, yesterdayClicks);
-  const yesterdayRoas = yesterdaySpend > 0 ? yesterdayRoasWeighted / yesterdaySpend : 0;
+  const prevCtr = calculateCtr(prevClicks, prevImpressions);
+  const prevCpc = calculateCpc(prevSpend, prevClicks);
+  const prevRoas = prevSpend > 0 ? prevRoasWeighted / prevSpend : 0;
 
   return {
-    spend: todaySpend,
-    spendGrowth: calculateGrowth(todaySpend, yesterdaySpend),
+    spend: currentSpend,
+    spendGrowth: calculateGrowth(currentSpend, prevSpend),
     roas,
-    roasGrowth: calculateGrowth(roas, yesterdayRoas),
+    roasGrowth: calculateGrowth(roas, prevRoas),
     cpc,
-    cpcGrowth: calculateGrowth(cpc, yesterdayCpc),
+    cpcGrowth: calculateGrowth(cpc, prevCpc),
     ctr,
-    ctrGrowth: calculateGrowth(ctr, yesterdayCtr),
-    impressions: todayImpressions,
-    reach: todayReach,
-    reachGrowth: calculateGrowth(todayReach, yesterdayReach),
-    clicks: todayClicks,
-    clicksGrowth: calculateGrowth(todayClicks, yesterdayClicks),
+    ctrGrowth: calculateGrowth(ctr, prevCtr),
+    impressions: currentImpressions,
+    reach: currentReach,
+    reachGrowth: calculateGrowth(currentReach, prevReach),
+    clicks: currentClicks,
+    clicksGrowth: calculateGrowth(currentClicks, prevClicks),
     conversions: 0,
     frequency,
   };

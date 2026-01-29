@@ -17,7 +17,14 @@ const DB_IDS = {
   campaigns: '2b708b1c-348f-8141-999f-f77b91095543',
   dailyReport: '2c308b1c348f808bacd0e465c92773aa',
   mentions: '2bd08b1c348f8023bf04fa37fc57d0b6',
-  applicants: '2b708b1c348f81b0a367e99677c3c0da', // 사계단백연구소 캠페인 접수 리스트
+  applicants: '2b708b1c348f81b0a367e99677c3c0da', // 사계단백연구소 캠페인 접수 리스트 (기본값)
+};
+
+// 계정별 신청자 DB 매핑
+const ACCOUNT_APPLICANTS_DB = {
+  'w365299': '2b708b1c348f81b0a367e99677c3c0da',      // 사계단백
+  'ehddls5151@': '2b708b1c348f81b0a367e99677c3c0da',  // 사계단백
+  'sweatif': '2f508b1c348f808a86b1d5596fcf0cfe',      // sweatif
 };
 
 // ============================================
@@ -386,6 +393,11 @@ app.get('/api/seeding', async (req, res) => {
 // 신청자 목록 조회 (노션 DB에서)
 app.get('/api/applicants', async (req, res) => {
   try {
+    // loginId로 해당 계정의 DB 조회
+    const { loginId } = req.query;
+    const dbId = ACCOUNT_APPLICANTS_DB[loginId] || DB_IDS.applicants;
+    console.log(`[ApplicantAPI] loginId: ${loginId}, dbId: ${dbId}`);
+
     // 페이지네이션으로 모든 결과 수집 (Notion API는 최대 100개씩 반환)
     let allResults = [];
     let hasMore = true;
@@ -393,7 +405,7 @@ app.get('/api/applicants', async (req, res) => {
 
     while (hasMore) {
       const response = await notion.databases.query({
-        database_id: DB_IDS.applicants,
+        database_id: dbId,
         sorts: [
           {
             property: '접수 일시',

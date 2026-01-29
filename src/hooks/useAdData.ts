@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdStore } from '../stores/adStore';
+import type { PeriodType } from '../types';
 
 /**
  * 광고 페이지 전용 통합 훅
@@ -31,6 +32,11 @@ export function useAdData() {
     }
   }, [user?.id, store.refresh]);
 
+  // 기간 변경 함수 (API 재호출 없이 재계산)
+  const setPeriod = useCallback((period: PeriodType, customRange?: { start: string; end: string }) => {
+    store.setPeriod(period, customRange);
+  }, [store.setPeriod]);
+
   return {
     // 데이터
     adPerformance: store.adPerformance,
@@ -43,8 +49,11 @@ export function useAdData() {
     error: store.error,
     lastUpdated: store.lastUpdated,
     serverSyncTime: store.serverSyncTime,
+    period: store.period,
+    customDateRange: store.customDateRange,
 
     // 액션
     refetch,
+    setPeriod,
   };
 }

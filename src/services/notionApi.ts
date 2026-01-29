@@ -322,9 +322,12 @@ export interface ApplicantApiResponse {
 }
 
 // 신청자 목록 조회 (노션 DB에서)
-export async function fetchApplicants(): Promise<ApplicantDto[]> {
+// loginId로 계정별 노션 DB 조회
+export async function fetchApplicants(loginId?: string): Promise<ApplicantDto[]> {
   // 로컬 개발 시 Vite 프록시 사용 (vite.config.ts에서 /api -> localhost:3001)
-  const url = '/api/applicants';
+  const url = loginId
+    ? `/api/applicants?loginId=${encodeURIComponent(loginId)}`
+    : '/api/applicants';
   console.log('[ApplicantAPI] Fetching:', url);
 
   const response = await fetch(url, {

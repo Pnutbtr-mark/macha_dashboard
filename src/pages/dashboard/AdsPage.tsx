@@ -10,11 +10,6 @@ import type { PeriodType } from '../../types';
 
 export function AdsPage() {
   const { user } = useAuth();
-  const [period, setPeriod] = useState<PeriodType>('daily');
-  const [customDateRange, setCustomDateRange] = useState({
-    start: '2024-12-01',
-    end: '2024-12-14',
-  });
   const [syncing, setSyncing] = useState(false);
 
   // 통합 훅 사용 (기존 2개 훅 → 1개 훅으로 통합)
@@ -25,8 +20,21 @@ export function AdsPage() {
     campaignHierarchy,
     loading: adLoading,
     serverSyncTime,
+    period,
+    customDateRange,
     refetch: refetchAd,
+    setPeriod,
   } = useAdData();
+
+  // 기간 변경 핸들러
+  const handlePeriodChange = useCallback((newPeriod: PeriodType) => {
+    setPeriod(newPeriod);
+  }, [setPeriod]);
+
+  // 사용자 지정 날짜 범위 변경 핸들러
+  const handleCustomDateChange = useCallback((start: string, end: string) => {
+    setPeriod('custom', { start, end });
+  }, [setPeriod]);
 
   // 프로필 데이터 (AdsTab에 필요)
   const { profileInsight } = useProfileData();
@@ -60,9 +68,9 @@ export function AdsPage() {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <PeriodFilter
           period={period}
-          onChange={setPeriod}
-          customDateRange={customDateRange}
-          onCustomDateChange={(start, end) => setCustomDateRange({ start, end })}
+          onChange={handlePeriodChange}
+          customDateRange={customDateRange || { start: '2024-12-01', end: '2024-12-14' }}
+          onCustomDateChange={handleCustomDateChange}
         />
 
         <div className="flex items-center gap-3">
