@@ -405,3 +405,33 @@ export interface DashAdCampaignDetailItem {
   dashAdAccount: DashAdAccount;
   adDetailResponseObjs: AdDetailResponseObj[];
 }
+
+// ============================================
+// 캠페인-인플루언서 참여 API 타입
+// ============================================
+
+// 22. 시딩 캠페인 정보 (참여 API 응답용)
+export interface DashCampaign {
+  id: string;
+  name: string;
+  dashMemberId: string;
+  category: string;
+  type: string;
+  product: string;
+  participantCount: number;
+  startDate: string;
+  endDate: string;
+  manager: string;
+  status: string;
+  mentionName: string;
+  syncTime: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 23. 캠페인-인플루언서 참여 응답 아이템
+export interface DashCampaignInfluencerParticipate {
+  dashCampaign: DashCampaign;
+  dashInfluencer: DashInfluencer;
+  status: string;
+}

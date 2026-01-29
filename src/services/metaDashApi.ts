@@ -14,6 +14,7 @@ import type {
   DashInfluencerWithDetail,
   DashAdListItem,
   DashAdCampaignDetailItem,
+  DashCampaignInfluencerParticipate,
 } from '../types/metaDash';
 
 const BASE_URL = 'https://matcha.pnutbutter.kr';
@@ -265,6 +266,24 @@ export async function fetchDashAdCampaignDetail(
 ): Promise<DashAdCampaignDetailItem[]> {
   const response = await fetchMetaDash<MetaDashResponse<DashAdCampaignDetailItem[]>>(
     `/api/v1/dash-ad/${dashMemberId}/detail/${dashAdCampaignId}`
+  );
+  return response.result || [];
+}
+
+// 12. 캠페인-인플루언서 참여 등록
+export async function participateCampaignInfluencer(
+  dashCampaignId: string,
+  dashInfluencerId: string
+): Promise<DashCampaignInfluencerParticipate[]> {
+  const response = await fetchMetaDash<MetaDashResponse<DashCampaignInfluencerParticipate[]>>(
+    `/api/v1/dash-campaign-influencer-participate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        dashCampaignId,
+        dashInfluencerId,
+      }),
+    }
   );
   return response.result || [];
 }

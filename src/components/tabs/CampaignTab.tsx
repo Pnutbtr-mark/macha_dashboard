@@ -40,7 +40,7 @@ import {
   type CampaignResultDto,
   type CampaignWithDetail,
 } from '../../services/notionApi';
-import { fetchDashInfluencersWithDetail } from '../../services/metaDashApi';
+import { fetchDashInfluencersWithDetail, participateCampaignInfluencer } from '../../services/metaDashApi';
 import type { DashInfluencerWithDetail } from '../../types/metaDash';
 import type {
   Influencer,
@@ -1419,7 +1419,19 @@ function CampaignDetailView({
                 matchedInfluencers={matchedInfluencers.filter(
                   item => !addedToSeedingIds.has(item.dashInfluencer.id)
                 )}
-                onAddToSeeding={(newItems) => {
+                onAddToSeeding={async (newItems) => {
+                  // API 호출: 각 인플루언서를 캠페인 참여자로 등록
+                  try {
+                    const apiPromises = newItems.map(item =>
+                      participateCampaignInfluencer(campaign.id, item.influencer.id)
+                    );
+                    await Promise.all(apiPromises);
+                    console.log('[CampaignDetail] API 호출 성공:', newItems.length, '명');
+                  } catch (error) {
+                    console.error('[CampaignDetail] API 호출 실패:', error);
+                    // API 실패해도 localStorage에는 저장 (오프라인 대응)
+                  }
+
                   setNotionSeeding(prev => [...prev, ...newItems]);
                   // 추가된 인플루언서 ID를 기록하여 신청자 리스트에서 제외
                   const newIds = new Set(newItems.map(item => item.influencer.id));
