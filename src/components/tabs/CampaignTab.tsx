@@ -1528,6 +1528,7 @@ export function CampaignTab({
   aiAnalysis: _aiAnalysis,
   loading: _loading,
 }: CampaignTabProps) {
+  const { user } = useAuth();
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignListItem | null>(null);
   const [selectedCampaignResults, setSelectedCampaignResults] = useState<CampaignResultDto[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignListItem[]>([]);
@@ -1549,6 +1550,7 @@ export function CampaignTab({
       console.log('[CampaignTab] Starting to load campaigns with detail, page:', page);
 
       const result = await fetchCampaignsWithDetail({
+        dashMemberId: user?.id || '',
         page,
         size: pagination.size,
         direction: 'DESC',

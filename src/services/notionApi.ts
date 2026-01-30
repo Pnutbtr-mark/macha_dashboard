@@ -102,6 +102,7 @@ export interface CreateCampaignRequest {
 
 // 캠페인 통합 조회 API 관련 타입
 export interface FetchCampaignsWithDetailParams {
+  dashMemberId: string;
   page?: number;
   size?: number;
   direction?: 'ASC' | 'DESC';
@@ -242,13 +243,14 @@ export async function syncCampaignData(campaignId: string, time?: string): Promi
 
 // 캠페인 목록 + 상세 통합 조회 (페이징 지원)
 export async function fetchCampaignsWithDetail(
-  params: FetchCampaignsWithDetailParams = {}
+  params: FetchCampaignsWithDetailParams
 ): Promise<PageResponse<CampaignWithDetail>> {
   const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || 'https://matcha.pnutbutter.kr';
 
-  const { page = 1, size = 10, direction = 'DESC' } = params;
+  const { dashMemberId, page = 1, size = 10, direction = 'DESC' } = params;
 
   const queryParams = new URLSearchParams();
+  queryParams.append('dashMemberId', dashMemberId);
   queryParams.append('page', String(page));
   queryParams.append('size', String(size));
   queryParams.append('direction', direction);
