@@ -26,7 +26,7 @@ import { InfoTooltip } from '../common/InfoTooltip';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
 import { formatNumber, formatCurrency, formatPercent, formatRoas } from '../../utils/formatters';
 import { EMPTY_AD_PERFORMANCE, generateEmptyDailyAdData } from '../../data/dummyData';
-import type { AdPerformance, DailyAdData, CampaignPerformance, ProfileInsight, CampaignHierarchy } from '../../types';
+import type { AdPerformance, DailyAdData, CampaignPerformance, ProfileInsight, CampaignHierarchy, PeriodType } from '../../types';
 
 interface AdsTabProps {
   adData: AdPerformance | null;
@@ -35,6 +35,18 @@ interface AdsTabProps {
   campaignHierarchy: CampaignHierarchy[];  // 캠페인 계층 구조 추가
   profileData: ProfileInsight | null;
   loading: boolean;
+  period: PeriodType;  // 기간 타입 추가
+}
+
+// 기간별 비교 텍스트 함수
+function getComparisonText(period: PeriodType): string {
+  switch (period) {
+    case 'daily': return '전일 대비';
+    case 'weekly': return '전주 대비';
+    case 'monthly': return '전월 대비';
+    case 'custom': return '이전 기간 대비';
+    default: return '전일 대비';
+  }
 }
 
 // 광고 AI 분석 데이터
@@ -61,6 +73,7 @@ function AdKPICard({
   metricKey,
   loading,
   isEmpty = false,
+  comparisonText = '전일 대비',
 }: {
   title: string;
   value: string;
@@ -70,6 +83,7 @@ function AdKPICard({
   metricKey?: string;
   loading?: boolean;
   isEmpty?: boolean;
+  comparisonText?: string;
 }) {
   if (loading) {
     return (
@@ -98,7 +112,7 @@ function AdKPICard({
       ) : (
         <div className={`flex items-center gap-1 text-xs font-medium ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
           {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-          <span>전일 대비 {change > 0 ? '+' : ''}{formatPercent(change)}</span>
+          <span>{comparisonText} {change > 0 ? '+' : ''}{formatPercent(change)}</span>
         </div>
       )}
     </div>
@@ -198,7 +212,9 @@ const formatObjective = (objective: string): string => {
   return objectiveMap[objective] || objective || '미설정';
 };
 
-export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, profileData, loading }: AdsTabProps) {
+export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, profileData, loading, period }: AdsTabProps) {
+  // 기간별 비교 텍스트
+  const comparisonText = getComparisonText(period);
   // 캠페인 테이블 페이지네이션 및 필터
   const [campaignPage, setCampaignPage] = useState(1);
   const [hierarchyPage, setHierarchyPage] = useState(1);  // 캠페인 계층 구조 페이지
@@ -313,6 +329,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
           metricKey="spend"
           loading={loading}
           isEmpty={!hasData}
+          comparisonText={comparisonText}
         />
         <AdKPICard
           title="ROAS"
@@ -322,6 +339,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
           metricKey="roas"
           loading={loading}
           isEmpty={!hasData}
+          comparisonText={comparisonText}
         />
         <AdKPICard
           title="총 광고 도달"
@@ -331,6 +349,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
           metricKey="reach"
           loading={loading}
           isEmpty={!hasData}
+          comparisonText={comparisonText}
         />
         <AdKPICard
           title="총 광고 클릭"
@@ -340,6 +359,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
           metricKey="clicks"
           loading={loading}
           isEmpty={!hasData}
+          comparisonText={comparisonText}
         />
         <AdKPICard
           title="평균 CTR"
@@ -349,6 +369,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
           metricKey="ctr"
           loading={loading}
           isEmpty={!hasData}
+          comparisonText={comparisonText}
         />
         <AdKPICard
           title="평균 CPC"
@@ -358,6 +379,7 @@ export function AdsTab({ adData, dailyData, campaignData, campaignHierarchy, pro
           metricKey="cpc"
           loading={loading}
           isEmpty={!hasData}
+          comparisonText={comparisonText}
         />
       </section>
 

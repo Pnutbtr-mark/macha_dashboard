@@ -100,6 +100,7 @@ export function AdsPage() {
         campaignHierarchy={campaignHierarchy}
         profileData={profileInsight}
         loading={adLoading}
+        period={period}
       />
     </>
   );

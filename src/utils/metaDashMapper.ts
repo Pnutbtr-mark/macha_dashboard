@@ -8,6 +8,7 @@ import type {
   DashAdAccountInsight,
   DashAdSet,
   DashAdCampaignDetailItem,
+  DashAdCampaign,
   ActionValue,
 } from '../types/metaDash';
 import type {
@@ -779,8 +780,11 @@ export function mapToAdPerformanceFromCampaignDetail(
 
 // 10. 캠페인 상세 응답에서 일별 광고 데이터 변환
 // KPI 카드 함수(mapToAdPerformanceFromCampaignDetail)와 동일한 3단계 중복 제거 적용
+// 기간 파라미터로 기간별 데이터 필터링 지원
 export function mapToDailyAdDataFromCampaignDetail(
-  campaignDetails: DashAdCampaignDetailItem[]
+  campaignDetails: DashAdCampaignDetailItem[],
+  period: PeriodType = 'daily',
+  customRange?: { start: string; end: string }
 ): DailyAdData[] {
   // 1. 캠페인 중복 제거 (metaId 기준) - KPI 카드 함수와 동일
   const campaignMap = new Map<string, DashAdCampaignDetailItem>();
@@ -804,7 +808,25 @@ export function mapToDailyAdDataFromCampaignDetail(
     }
   }
 
-  // 2. 날짜별 합계 (중복 제거된 데이터 사용)
+  // 2. 데이터에서 모든 날짜 추출하여 가장 최근 날짜 찾기
+  const allDates: string[] = [];
+  for (const detail of campaignMap.values()) {
+    for (const adDetailObj of (detail.adDetailResponseObjs || [])) {
+      for (const child of (adDetailObj.adSetChildObjs || [])) {
+        const dateStr = child.dashAdAccountInsight?.time?.split('T')[0];
+        if (dateStr) allDates.push(dateStr);
+      }
+    }
+  }
+
+  // 가장 최근 데이터 날짜를 기준으로 사용 (동기화 지연 대응)
+  const latestDate = getLatestDateFromData(allDates);
+  const baseDate = latestDate ? new Date(latestDate + 'T12:00:00') : new Date();
+
+  // 기간별 날짜 범위 계산
+  const { startDate, endDate } = getDateRangeForPeriod(period, baseDate, customRange);
+
+  // 3. 날짜별 합계 (중복 제거된 데이터 사용)
   const dateMap = new Map<string, { spend: number; impressions: number; clicks: number; reach: number; roasWeighted: number }>();
 
   for (const detail of campaignMap.values()) {
@@ -843,12 +865,16 @@ export function mapToDailyAdDataFromCampaignDetail(
         }
       }
 
-      // 중복 제거된 인사이트만 합산
+      // 중복 제거된 인사이트만 합산 (기간 필터 적용)
       for (const child of adMap.values()) {
         const insight = child.dashAdAccountInsight;
         if (!insight) continue;
 
         const dateStr = insight.time.split('T')[0];
+
+        // 기간 필터: 선택한 기간 범위 내 데이터만 포함
+        if (dateStr < startDate || dateStr > endDate) continue;
+
         const existing = dateMap.get(dateStr) || { spend: 0, impressions: 0, clicks: 0, reach: 0, roasWeighted: 0 };
         dateMap.set(dateStr, {
           spend: existing.spend + insight.spend,
@@ -865,10 +891,9 @@ export function mapToDailyAdDataFromCampaignDetail(
     return [];
   }
 
-  // 3. 날짜순 정렬 후 변환 (최근 14일)
+  // 4. 날짜순 정렬 후 변환
   return Array.from(dateMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-14)
     .map(([dateStr, data]) => ({
       date: formatDateToMMDD(dateStr + 'T00:00:00'),
       spend: data.spend,
@@ -882,9 +907,11 @@ export function mapToDailyAdDataFromCampaignDetail(
 }
 
 // 11. 캠페인 상세 응답에서 캠페인 계층 구조 변환
-// 전체 기간 데이터를 합산하여 표시 (오늘 데이터 없어도 정상 표시)
+// 기간 파라미터로 기간별 데이터 필터링 지원
 export function mapToCampaignHierarchyFromCampaignDetail(
-  campaignDetails: DashAdCampaignDetailItem[]
+  campaignDetails: DashAdCampaignDetailItem[],
+  period: PeriodType = 'daily',
+  customRange?: { start: string; end: string }
 ): CampaignHierarchy[] {
   // campaignId 기준 중복 제거 (Map 사용)
   const campaignMap = new Map<string, DashAdCampaignDetailItem>();
@@ -918,6 +945,24 @@ export function mapToCampaignHierarchyFromCampaignDetail(
       });
     }
   }
+
+  // 데이터에서 모든 날짜 추출하여 가장 최근 날짜 찾기
+  const allDates: string[] = [];
+  for (const detail of campaignMap.values()) {
+    for (const adDetailObj of (detail.adDetailResponseObjs || [])) {
+      for (const child of (adDetailObj.adSetChildObjs || [])) {
+        const dateStr = child.dashAdAccountInsight?.time?.split('T')[0];
+        if (dateStr) allDates.push(dateStr);
+      }
+    }
+  }
+
+  // 가장 최근 데이터 날짜를 기준으로 사용 (동기화 지연 대응)
+  const latestDate = getLatestDateFromData(allDates);
+  const baseDate = latestDate ? new Date(latestDate + 'T12:00:00') : new Date();
+
+  // 기간별 날짜 범위 계산
+  const { startDate, endDate } = getDateRangeForPeriod(period, baseDate, customRange);
 
   // 중복 제거된 캠페인만 변환
   return Array.from(campaignMap.values()).map(detail => {
@@ -955,11 +1000,15 @@ export function mapToCampaignHierarchyFromCampaignDetail(
       const adSet = adDetailObj.dashAdSet;
       const childObjs = adDetailObj.adSetChildObjs || [];
 
-      // 소재별로 모든 날짜의 인사이트를 그룹핑 (전체 기간 합산)
+      // 소재별로 기간 내 인사이트를 그룹핑
       const adInsightsMap = new Map<string, { detail: typeof childObjs[0]['dashAdDetailEntity']; insights: typeof childObjs[0]['dashAdAccountInsight'][] }>();
       for (const child of childObjs) {
         const adId = child.dashAdDetailEntity?.adId;
         if (!adId) continue;
+
+        // 기간 필터: 선택한 기간 범위 내 데이터만 포함
+        const insightDate = child.dashAdAccountInsight?.time?.split('T')[0];
+        if (!insightDate || insightDate < startDate || insightDate > endDate) continue;
 
         const existing = adInsightsMap.get(adId);
         if (!existing) {
@@ -979,9 +1028,9 @@ export function mapToCampaignHierarchyFromCampaignDetail(
         }
       }
 
-      // 소재(Ad) 목록 매핑 (전체 기간 데이터 합산)
+      // 소재(Ad) 목록 매핑 (기간 내 데이터 합산)
       const ads: AdWithPerformance[] = Array.from(adInsightsMap.values()).map(({ detail: adDetail, insights }) => {
-        // 전체 기간 인사이트 합산
+        // 기간 내 인사이트 합산
         const adSpend = insights.reduce((sum, i) => sum + (i?.spend || 0), 0);
         const adReach = insights.reduce((sum, i) => sum + (i?.reach || 0), 0);
         const adClicks = insights.reduce((sum, i) => sum + (i?.clicks || 0), 0);
@@ -1012,7 +1061,7 @@ export function mapToCampaignHierarchyFromCampaignDetail(
         };
       });
 
-      // 해당 광고세트의 전체 기간 성과 합산 (소재 성과 합산)
+      // 해당 광고세트의 기간 내 성과 합산 (소재 성과 합산)
       const totalSpend = ads.reduce((sum, ad) => sum + ad.spend, 0);
       const totalReach = ads.reduce((sum, ad) => sum + ad.reach, 0);
       const totalClicks = ads.reduce((sum, ad) => sum + ad.clicks, 0);
@@ -1125,4 +1174,126 @@ export function mapToCampaignPerformanceFromCampaignDetail(
       startDate: earliestTime,
     };
   });
+}
+
+// ============================================
+// 어댑터 함수: 새 API 응답 → 기존 매퍼 형태로 변환
+// ============================================
+
+/**
+ * 새 API 응답(DashAdAccountWithInsights[])을
+ * 기존 매퍼가 기대하는 형태(DashAdCampaignDetailItem[])로 변환
+ *
+ * 이 어댑터를 통해 기존 `*FromCampaignDetail` 매퍼들을 그대로 사용 가능
+ *
+ * 참고: API 응답에 dashAdSets가 없으면 dashAdDetailWithInsights에서 직접 추출
+ */
+export function convertInsightsToCampaignDetail(
+  accountsWithInsights: DashAdAccountWithInsights[]
+): DashAdCampaignDetailItem[] {
+  const result: DashAdCampaignDetailItem[] = [];
+
+  accountsWithInsights.forEach(account => {
+    const details = account.dashAdDetailWithInsights || [];
+
+    // 데이터가 없으면 스킵
+    if (details.length === 0) {
+      return;
+    }
+
+    // dashAdDetailWithInsights에서 캠페인ID별로 그룹핑
+    const campaignMap = new Map<string, typeof details>();
+
+    details.forEach(detail => {
+      const campaignId = detail.dashAdDetailEntity?.campaignId;
+      if (!campaignId) return;
+
+      if (!campaignMap.has(campaignId)) {
+        campaignMap.set(campaignId, []);
+      }
+      campaignMap.get(campaignId)!.push(detail);
+    });
+
+    // 각 캠페인별로 DashAdCampaignDetailItem 생성
+    campaignMap.forEach((campaignDetails, campaignId) => {
+      const firstDetail = campaignDetails[0].dashAdDetailEntity;
+      const firstInsight = campaignDetails[0].dashAdAccountInsight;
+
+      // DashAdCampaign 생성 (API에서 캠페인 상세 정보가 없으므로 가용 데이터로 구성)
+      const dashAdCampaign: DashAdCampaign = {
+        id: campaignId,
+        metaId: campaignId,
+        dashMemberId: firstDetail.dashMemberId,
+        adAccountId: account.dashAdAccount.metaAccountId,
+        time: firstInsight.time,
+        status: firstDetail.status || 'ACTIVE',
+        name: `캠페인 ${campaignId.slice(-6)}`, // 캠페인 이름 없음, ID 일부 사용
+        effectiveStatus: firstDetail.effectiveStatus || 'ACTIVE',
+        objective: 'OUTCOME_TRAFFIC', // 기본값
+        startTime: firstInsight.time,
+        createdTime: firstInsight.createdAt || firstInsight.time,
+        updatedTime: firstInsight.updatedAt || firstInsight.time,
+      };
+
+      // adsetId별로 그룹핑하여 adDetailResponseObjs 구성
+      const adSetMap = new Map<string, typeof campaignDetails>();
+
+      campaignDetails.forEach(detail => {
+        const adsetId = detail.dashAdDetailEntity?.adsetId;
+        if (!adsetId) return;
+
+        if (!adSetMap.has(adsetId)) {
+          adSetMap.set(adsetId, []);
+        }
+        adSetMap.get(adsetId)!.push(detail);
+      });
+
+      const adDetailResponseObjs = Array.from(adSetMap.entries()).map(([adsetId, adSetDetails]) => {
+        const firstAdSetDetail = adSetDetails[0].dashAdDetailEntity;
+
+        // 가상의 DashAdSet 생성 (실제 광고세트 정보가 없으므로 가용 데이터로 구성)
+        const dashAdSet: DashAdSet = {
+          id: adsetId,
+          adAccountId: account.dashAdAccount.metaAccountId,
+          dashMemberId: firstAdSetDetail.dashMemberId,
+          time: adSetDetails[0].dashAdAccountInsight.time,
+          metaAdSetId: adsetId,
+          name: `광고세트 ${adsetId.slice(-6)}`, // 광고세트 이름 없음
+          status: 'ACTIVE',
+          effectiveStatus: 'ACTIVE',
+          dailyBudget: '0',
+          lifetimeBudget: '0',
+          billingEvent: 'IMPRESSIONS',
+          optimizationGoal: 'REACH',
+          bidStrategy: 'LOWEST_COST_WITHOUT_CAP',
+          startTime: adSetDetails[0].dashAdAccountInsight.time,
+          createdTime: adSetDetails[0].dashAdAccountInsight.createdAt || adSetDetails[0].dashAdAccountInsight.time,
+          updatedTime: adSetDetails[0].dashAdAccountInsight.updatedAt || adSetDetails[0].dashAdAccountInsight.time,
+          campaign: {
+            campaignId: campaignId,
+            name: dashAdCampaign.name,
+            objective: dashAdCampaign.objective,
+          },
+        };
+
+        const adSetChildObjs = adSetDetails.map(detail => ({
+          dashAdDetailEntity: detail.dashAdDetailEntity,
+          dashAdAccountInsight: detail.dashAdAccountInsight,
+        }));
+
+        return {
+          dashAdSet,
+          adSetChildObjs,
+        };
+      });
+
+      result.push({
+        dashAdCampaign,
+        dashAdAccount: account.dashAdAccount,
+        adDetailResponseObjs,
+      });
+    });
+  });
+
+  return result;
 }

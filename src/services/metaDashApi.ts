@@ -166,10 +166,11 @@ export async function fetchDashAdAccount(
 
 // 7. 광고 인사이트 (계정별 광고 성과)
 export async function fetchDashAdInsight(
-  dashMemberId: string
+  dashMemberId: string,
+  time: string  // 필수 파라미터 (YYYY-MM-DD 형식)
 ): Promise<DashAdAccountWithInsights[]> {
   const response = await fetchMetaDash<MetaDashResponse<DashAdAccountWithInsights[]>>(
-    `/api/v1/dash-ad/my-insight/${dashMemberId}`
+    `/api/v1/dash-ad/my-insight/${dashMemberId}?time=${time}`
   );
   return response.result || [];
 }

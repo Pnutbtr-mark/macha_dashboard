@@ -351,6 +351,7 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
             campaignHierarchy={adData?.campaignHierarchy || []}
             profileData={profileData}
             loading={isLoading.ads}
+            period={period}
           />
         )}
 

@@ -11,14 +11,14 @@ import type {
   DashAdCampaignDetailItem,
 } from '../types/metaDash';
 import {
-  fetchDashAdList,
-  fetchDashAdCampaignDetail,
+  fetchDashAdInsight,
 } from '../services/metaDashApi';
 import {
   mapToAdPerformanceFromCampaignDetail,
   mapToDailyAdDataFromCampaignDetail,
   mapToCampaignPerformanceFromCampaignDetail,
   mapToCampaignHierarchyFromCampaignDetail,
+  convertInsightsToCampaignDetail,
 } from '../utils/metaDashMapper';
 import {
   cachedFetch,
@@ -66,7 +66,7 @@ interface AdState {
 
 /**
  * 광고 데이터 통합 조회 함수
- * N+1 쿼리를 한 번에 처리하여 API 호출 수를 최소화
+ * 단일 API 호출 후 어댑터로 변환하여 기존 매퍼와 호환
  */
 async function fetchAllAdDataBatch(
   userId: string
@@ -74,23 +74,19 @@ async function fetchAllAdDataBatch(
   campaignList: DashAdListItem[];
   campaignDetails: DashAdCampaignDetailItem[];
 }> {
-  // 1. 캠페인 목록 조회
-  const campaignList = await fetchDashAdList(userId);
+  // 단일 API 호출
+  const today = new Date().toISOString().split('T')[0];
+  const accountsWithInsights = await fetchDashAdInsight(userId, today);
 
-  // 캠페인이 없으면 빈 배열 반환
-  if (campaignList.length === 0) {
+  // 데이터가 없으면 빈 배열 반환
+  if (!accountsWithInsights || accountsWithInsights.length === 0) {
     return { campaignList: [], campaignDetails: [] };
   }
 
-  // 2. 모든 캠페인 상세를 병렬로 조회
-  const detailPromises = campaignList.map(item =>
-    fetchDashAdCampaignDetail(userId, item.dashAdCampaign.id)
-  );
+  // 어댑터로 기존 매퍼가 기대하는 형태로 변환
+  const campaignDetails = convertInsightsToCampaignDetail(accountsWithInsights);
 
-  const detailResults = await Promise.all(detailPromises);
-  const campaignDetails = detailResults.flat();
-
-  return { campaignList, campaignDetails };
+  return { campaignList: [], campaignDetails };
 }
 
 /**
@@ -160,9 +156,17 @@ export const useAdStore = create<AdState>((set, get) => ({
         period,
         customDateRange || undefined
       );
-      const dailyAdData = mapToDailyAdDataFromCampaignDetail(campaignDetails);
+      const dailyAdData = mapToDailyAdDataFromCampaignDetail(
+        campaignDetails,
+        period,
+        customDateRange || undefined
+      );
       const campaignPerformance = mapToCampaignPerformanceFromCampaignDetail(campaignDetails);
-      const campaignHierarchy = mapToCampaignHierarchyFromCampaignDetail(campaignDetails);
+      const campaignHierarchy = mapToCampaignHierarchyFromCampaignDetail(
+        campaignDetails,
+        period,
+        customDateRange || undefined
+      );
 
       set({
         rawCampaignList: campaignList,
@@ -214,9 +218,17 @@ export const useAdStore = create<AdState>((set, get) => ({
         period,
         customDateRange || undefined
       );
-      const dailyAdData = mapToDailyAdDataFromCampaignDetail(campaignDetails);
+      const dailyAdData = mapToDailyAdDataFromCampaignDetail(
+        campaignDetails,
+        period,
+        customDateRange || undefined
+      );
       const campaignPerformance = mapToCampaignPerformanceFromCampaignDetail(campaignDetails);
-      const campaignHierarchy = mapToCampaignHierarchyFromCampaignDetail(campaignDetails);
+      const campaignHierarchy = mapToCampaignHierarchyFromCampaignDetail(
+        campaignDetails,
+        period,
+        customDateRange || undefined
+      );
 
       set({
         rawCampaignList: campaignList,
@@ -249,15 +261,25 @@ export const useAdStore = create<AdState>((set, get) => ({
       customDateRange: customRange || null,
     });
 
-    // rawCampaignDetails가 있으면 재계산
+    // rawCampaignDetails가 있으면 모든 데이터 재계산
     if (rawCampaignDetails && rawCampaignDetails.length > 0) {
       const adPerformance = mapToAdPerformanceFromCampaignDetail(
         rawCampaignDetails,
         newPeriod,
         customRange
       );
+      const dailyAdData = mapToDailyAdDataFromCampaignDetail(
+        rawCampaignDetails,
+        newPeriod,
+        customRange
+      );
+      const campaignHierarchy = mapToCampaignHierarchyFromCampaignDetail(
+        rawCampaignDetails,
+        newPeriod,
+        customRange
+      );
 
-      set({ adPerformance });
+      set({ adPerformance, dailyAdData, campaignHierarchy });
     }
   },
 
