@@ -93,6 +93,24 @@ function extractShortCode(url: string | undefined): string | null {
   return match ? match[1] : null;
 }
 
+// 캠페인 결과에서 최신 time 값 추출
+function getLatestTime(results: CampaignResultDto[]): string | null {
+  if (!results || results.length === 0) return null;
+
+  const times = results.map(r => r.time).filter(Boolean);
+  if (times.length === 0) return null;
+
+  return times.sort((a, b) => b.localeCompare(a))[0];
+}
+
+// 최신 time의 데이터만 필터링 (중복 제거)
+function filterByLatestTime(results: CampaignResultDto[]): CampaignResultDto[] {
+  const latestTime = getLatestTime(results);
+  if (!latestTime) return results;
+
+  return results.filter(r => r.time === latestTime);
+}
+
 // Instagram 게시물 이미지 컴포넌트 (CDN 만료 대응)
 function InstagramPostImage({
   originalUrl,
@@ -1363,13 +1381,17 @@ function CampaignDetailView({
 
       console.log('[CampaignDetail] Campaign results:', resultsData);
 
+      // 최신 time 데이터만 필터링 (중복 제거)
+      const filteredResults = filterByLatestTime(resultsData);
+      console.log('[CampaignDetail] Filtered results (latest time):', filteredResults.length, '/', resultsData.length);
+
       // 캠페인 결과에서 인플루언서 정보 추출하여 시딩 리스트 생성
-      const seedingData = extractSeedingFromResults(resultsData);
+      const seedingData = extractSeedingFromResults(filteredResults);
       console.log('[CampaignDetail] Extracted seeding data:', seedingData);
 
       setNotionSeeding(seedingData);
-      setCampaignResults(resultsData);
-      setNotionContent(resultsData.map(convertCampaignResultToContent));
+      setCampaignResults(filteredResults);
+      setNotionContent(filteredResults.map(convertCampaignResultToContent));
     } catch (err) {
       console.error('[CampaignDetail] 상세 데이터 로드 실패:', err);
     } finally {
@@ -1726,10 +1748,11 @@ export function CampaignTab({
       });
       setCampaigns(convertedCampaigns);
 
-      // 결과 데이터를 Map으로 캐싱
+      // 결과 데이터를 Map으로 캐싱 (최신 time만 필터링하여 중복 제거)
       const resultsMap = new Map<string, CampaignResultDto[]>();
       result.content.forEach((item: CampaignWithDetail) => {
-        resultsMap.set(item.campaign.id, item.campaignResults);
+        const filtered = filterByLatestTime(item.campaignResults);
+        resultsMap.set(item.campaign.id, filtered);
       });
       setCampaignResultsMap(resultsMap);
 
