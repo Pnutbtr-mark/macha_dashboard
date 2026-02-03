@@ -108,7 +108,7 @@ function TableHeader({
       : <ChevronDown size={14} className="text-orange-500" />;
   };
 
-  const headerClass = "px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-50 select-none";
+  const headerClass = "px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-50 select-none whitespace-nowrap";
 
   return (
     <thead className="bg-slate-50 border-b border-slate-200">
