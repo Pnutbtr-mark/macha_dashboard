@@ -15,6 +15,7 @@ interface CampaignSummaryHeaderProps {
     status: string;
   };
   applicantCount?: number;
+  participantCount?: number;
   budget?: number;
 }
 
@@ -22,6 +23,7 @@ interface CampaignSummaryHeaderProps {
 export function CampaignSummaryHeader({
   campaign,
   applicantCount = 0,
+  participantCount,
   budget,
 }: CampaignSummaryHeaderProps) {
   // 상태 배지 스타일
@@ -117,7 +119,7 @@ export function CampaignSummaryHeader({
             <p className="text-sm font-medium text-slate-700">
               <span className="text-primary-600">{applicantCount}명</span>
               {' / '}
-              <span className="text-emerald-600">{campaign.participants}명</span>
+              <span className="text-emerald-600">{participantCount ?? campaign.participants}명</span>
             </p>
           </div>
         </div>
