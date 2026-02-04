@@ -133,10 +133,12 @@ export async function syncDashAd(dashMemberId: string): Promise<boolean> {
 
 // 2. 회원 인사이트
 export async function fetchDashMemberInsight(
-  dashMemberId: string
+  dashMemberId: string,
+  time: string,  // 시작 날짜 (YYYY-MM-DD 형식)
+  endTime: string  // 종료 날짜 (YYYY-MM-DD 형식)
 ): Promise<DashMemberInsight[]> {
   const response = await fetchMetaDash<MetaDashResponse<DashMemberInsight[]>>(
-    `/api/v1/dash-members/my-insight/${dashMemberId}`
+    `/api/v1/dash-members/my-insight/${dashMemberId}?time=${time}&endTime=${endTime}`
   );
   return response.result || [];
 }
@@ -184,10 +186,11 @@ export async function fetchDashAdAccount(
 // 7. 광고 인사이트 (계정별 광고 성과)
 export async function fetchDashAdInsight(
   dashMemberId: string,
-  time: string  // 필수 파라미터 (YYYY-MM-DD 형식)
+  time: string,  // 시작 날짜 (YYYY-MM-DD 형식)
+  endTime: string  // 종료 날짜 (YYYY-MM-DD 형식)
 ): Promise<DashAdAccountWithInsights[]> {
   const response = await fetchMetaDash<MetaDashResponse<DashAdAccountWithInsights[]>>(
-    `/api/v1/dash-ad/my-insight/${dashMemberId}?time=${time}`,
+    `/api/v1/dash-ad/my-insight/${dashMemberId}?time=${time}&endTime=${endTime}`,
     undefined,
     60000 // 광고 인사이트는 60초 타임아웃
   );

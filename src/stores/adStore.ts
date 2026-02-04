@@ -77,9 +77,10 @@ async function fetchAllAdDataBatch(
   campaignList: DashAdListItem[];
   campaignDetails: DashAdCampaignDetailItem[];
 }> {
-  // 오늘 날짜로 API 호출 (백엔드가 전체 기간 데이터를 반환)
-  const today = new Date().toISOString().split('T')[0];
-  const accountsWithInsights = await fetchDashAdInsight(userId, today);
+  // 서버에 적재된 모든 데이터 조회
+  const startDate = '2020-01-01';
+  const endDate = new Date().toISOString().split('T')[0];
+  const accountsWithInsights = await fetchDashAdInsight(userId, startDate, endDate);
 
   // 데이터가 없으면 빈 배열 반환
   if (!accountsWithInsights || accountsWithInsights.length === 0) {

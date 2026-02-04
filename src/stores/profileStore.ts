@@ -90,11 +90,15 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ loading: true, error: null, currentUserId: userId });
 
     try {
+      // 서버에 적재된 모든 데이터 조회
+      const startDate = '2020-01-01';
+      const endDate = new Date().toISOString().split('T')[0];
+
       // 4개 API를 캐싱과 함께 병렬 호출 (중복 방지됨)
       const [insights, followers, followerInsights, medias] = await Promise.all([
         cachedFetch(
           createCacheKey('profile', 'insights', userId),
-          () => fetchDashMemberInsight(userId),
+          () => fetchDashMemberInsight(userId, startDate, endDate),
           CACHE_CONFIG.PROFILE_TTL
         ),
         cachedFetch(
@@ -163,11 +167,15 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
+      // 서버에 적재된 모든 데이터 조회
+      const startDate = '2020-01-01';
+      const endDate = new Date().toISOString().split('T')[0];
+
       // 캐시를 무시하고 강제로 새로 가져옴
       const [insights, followers, followerInsights, medias] = await Promise.all([
         forceFetch(
           createCacheKey('profile', 'insights', userId),
-          () => fetchDashMemberInsight(userId),
+          () => fetchDashMemberInsight(userId, startDate, endDate),
           CACHE_CONFIG.PROFILE_TTL
         ),
         forceFetch(

@@ -105,9 +105,13 @@ export function useProfileInsight(): ApiResponse<ProfileInsight> {
     setError(null);
 
     try {
+      // 서버에 적재된 모든 데이터 조회
+      const startDate = '2020-01-01';
+      const endDate = new Date().toISOString().split('T')[0];
+
       // Meta Dash API 호출
       const [insights, followers] = await Promise.all([
-        fetchDashMemberInsight(user.id),
+        fetchDashMemberInsight(user.id, startDate, endDate),
         fetchDashFollowers(user.id),
       ]);
 
@@ -165,10 +169,14 @@ export function useDailyProfileData(period: string): ApiResponse<DailyProfileDat
     setError(null);
 
     try {
+      // 서버에 적재된 모든 데이터 조회
+      const startDate = '2020-01-01';
+      const endDate = new Date().toISOString().split('T')[0];
+
       // Meta Dash API 호출
       const [followers, insights] = await Promise.all([
         fetchDashFollowers(user.id),
-        fetchDashMemberInsight(user.id),
+        fetchDashMemberInsight(user.id, startDate, endDate),
       ]);
 
       // 데이터 변환
@@ -222,9 +230,10 @@ export function useAdPerformance(userId?: string): ApiResponse<AdPerformanceResu
     setError(null);
 
     try {
-      // 단일 API 호출로 모든 광고 데이터 조회
-      const today = new Date().toISOString().split('T')[0];
-      const accountsWithInsights = await fetchDashAdInsight(userId, today);
+      // 서버에 적재된 모든 광고 데이터 조회
+      const startDate = '2020-01-01';
+      const endDate = new Date().toISOString().split('T')[0];
+      const accountsWithInsights = await fetchDashAdInsight(userId, startDate, endDate);
 
       // 어댑터로 기존 매퍼가 기대하는 형태로 변환
       const allCampaignDetails = convertInsightsToCampaignDetail(accountsWithInsights);
@@ -279,9 +288,10 @@ export function useDailyAdData(period: string, userId?: string): ApiResponse<Dai
     setError(null);
 
     try {
-      // 단일 API 호출로 모든 광고 데이터 조회
-      const today = new Date().toISOString().split('T')[0];
-      const accountsWithInsights = await fetchDashAdInsight(userId, today);
+      // 서버에 적재된 모든 광고 데이터 조회
+      const startDate = '2020-01-01';
+      const endDate = new Date().toISOString().split('T')[0];
+      const accountsWithInsights = await fetchDashAdInsight(userId, startDate, endDate);
 
       // 어댑터로 기존 매퍼가 기대하는 형태로 변환
       const allCampaignDetails = convertInsightsToCampaignDetail(accountsWithInsights);
