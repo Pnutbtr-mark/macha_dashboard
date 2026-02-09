@@ -220,7 +220,7 @@ export async function fetchCampaignResults(campaignId: string): Promise<Campaign
 // 승인된 인플루언서의 캠페인 결과 데이터 조회
 export async function fetchInfluencerResultList(campaignId: string): Promise<CampaignResultDto[]> {
   const baseUrl = import.meta.env.VITE_CAMPAIGN_API_URL || 'https://matcha.pnutbutter.kr';
-  const url = `${baseUrl}/api/v1/influencer-result-list/${campaignId}`;
+  const url = `${baseUrl}/api/v1/dash-campaigns/influencer-result-list/${campaignId}`;
   console.log('[CampaignAPI] Fetching influencer result list:', url);
 
   const response = await fetch(url, {
