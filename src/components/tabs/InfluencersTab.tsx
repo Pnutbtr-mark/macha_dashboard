@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Search, Users, Instagram, Heart, MessageCircle, X, Eye, ExternalLink, ChevronUp, ChevronDown, Calendar, Play, RefreshCw } from 'lucide-react';
-import { fetchDashInfluencersWithDetail, fetchAllDashInfluencersWithDetail, updateDashInfluencer, fetchDashInfluencerDetail } from '../../services/metaDashApi';
+import { fetchAllDashInfluencersWithDetail, updateDashInfluencer, fetchDashInfluencerDetail } from '../../services/metaDashApi';
 import type { DashInfluencerWithDetail, DashInfluencerPost, DashInfluencer, DashInfluencerDetail } from '../../types/metaDash';
 import { getProxiedImageUrl } from '../../utils/imageProxy';
 import { formatNumber as formatNumberBase, formatPercent } from '../../utils/formatters';
@@ -803,16 +803,10 @@ function InfluencerDetailModal({
 
 // 메인 컴포넌트
 export function InfluencersTab() {
-  const [influencersWithDetail, setInfluencersWithDetail] = useState<DashInfluencerWithDetail[]>([]);
+  // 전체 데이터 (클라이언트 정렬/페이징용)
+  const [allData, setAllData] = useState<DashInfluencerWithDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // 서버 페이징 상태
-  const [serverTotalElements, setServerTotalElements] = useState(0);
-  const [serverTotalPages, setServerTotalPages] = useState(0);
-
-  // 필터 활성 시 전체 데이터 캐시 (클라이언트 정렬/페이징용)
-  const [allFilteredData, setAllFilteredData] = useState<DashInfluencerWithDetail[]>([]);
 
   // 임시 필터 상태 (UI에 바인딩)
   const [tempSearchQuery, setTempSearchQuery] = useState('');
@@ -842,13 +836,7 @@ export function InfluencersTab() {
   const [currentPage, setCurrentPage] = useState(0);
   const PAGE_SIZE = 15;
 
-  // 필터 적용 여부 확인
-  const hasActiveFilter =
-    appliedFilters.search !== '' ||
-    appliedFilters.category !== 'all' ||
-    appliedFilters.follower !== 'all' ||
-    appliedFilters.engagement !== 'all' ||
-    appliedFilters.activity !== 'all';
+
 
   // 행 클릭 핸들러
   const handleRowClick = (item: DashInfluencerWithDetail) => {
@@ -867,21 +855,8 @@ export function InfluencersTab() {
     updatedInfluencer: DashInfluencer,
     updatedDetail: DashInfluencerDetail | null
   ) => {
-    // 목록에서 해당 인플루언서 업데이트
-    setInfluencersWithDetail(prev =>
-      prev.map(item =>
-        item.dashInfluencer.id === updatedInfluencer.id
-          ? {
-            ...item,
-            dashInfluencer: updatedInfluencer,
-            dashInfluencerDetail: updatedDetail ?? item.dashInfluencerDetail
-          }
-          : item
-      )
-    );
-
-    // allFilteredData도 업데이트 (필터 모드일 때)
-    setAllFilteredData(prev =>
+    // 전체 목록에서 해당 인플루언서 업데이트
+    setAllData(prev =>
       prev.map(item =>
         item.dashInfluencer.id === updatedInfluencer.id
           ? {
@@ -917,9 +892,8 @@ export function InfluencersTab() {
 
   // 검색 핸들러 - 임시 필터를 적용 상태로 복사
   const handleSearch = () => {
-    // 데이터 초기화 및 로딩 상태로 전환
-    setInfluencersWithDetail([]);
-    setAllFilteredData([]);
+    // 로딩 상태로 전환
+    setAllData([]);
     setLoading(true);
 
     setAppliedFilters({
@@ -934,9 +908,8 @@ export function InfluencersTab() {
 
   // 초기화 핸들러 - 임시 상태와 적용 상태 모두 초기화
   const handleReset = () => {
-    // 데이터 초기화 및 로딩 상태로 전환
-    setInfluencersWithDetail([]);
-    setAllFilteredData([]);
+    // 로딩 상태로 전환
+    setAllData([]);
     setLoading(true);
 
     setTempSearchQuery('');
@@ -987,32 +960,7 @@ export function InfluencersTab() {
     }
   };
 
-  // 서버 페이징 모드 (필터 비활성 시): 페이지별 15개씩 로드
-  useEffect(() => {
-    if (hasActiveFilter) return;
 
-    const loadInfluencers = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const result = await fetchDashInfluencersWithDetail({
-          page: currentPage + 1,
-          size: PAGE_SIZE,
-        });
-        setInfluencersWithDetail(result.content);
-        setServerTotalElements(result.totalElements);
-        setServerTotalPages(result.totalPages);
-      } catch (err) {
-        console.error('[InfluencersTab] 데이터 로드 실패:', err);
-        setError(err instanceof Error ? err.message : '알 수 없는 오류');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadInfluencers();
-  }, [currentPage, appliedFilters]);
 
   // ---------------------------------------------------------------------------
   // [Client-Side Filter Helpers]
@@ -1094,11 +1042,9 @@ export function InfluencersTab() {
     }
   }, [appliedFilters.engagement]);
 
-  // 클라이언트 모드 (필터 활성 시): 전체 데이터 한번에 로드 후 클라이언트 필터링 적용
+  // 데이터 로드: 항상 전체 데이터를 가져와서 클라이언트에서 처리
   useEffect(() => {
-    if (!hasActiveFilter) return;
-
-    const loadAllFiltered = async () => {
+    const loadAllData = async () => {
       try {
         setLoading(true);
         setError(null);
@@ -1109,7 +1055,8 @@ export function InfluencersTab() {
 
         // 1. API 호출 (1차 필터링 - 서버 사이드)
         // 주의: 서버는 'followerCount'(base) 기준으로 필터링할 수 있음 -> 오차 발생 가능
-        let allData = await fetchAllDashInfluencersWithDetail({
+        // 페이지네이션 없이 전체 데이터 로드 (최대 1000건)
+        let result = await fetchAllDashInfluencersWithDetail({
           keyword: appliedFilters.search || undefined,
           category: appliedFilters.category !== 'all' ? appliedFilters.category : undefined,
           ...followerRange,
@@ -1120,18 +1067,16 @@ export function InfluencersTab() {
         // 2. 클라이언트 필터링 (2차 필터링 - 보정)
         // API가 반환한 데이터 중, 최신 detail 정보 기준으로 조건에 맞지 않는 항목 제거
         if (appliedFilters.follower !== 'all') {
-          allData = allData.filter(item => checkFollowerFilter(item, appliedFilters.follower));
+          result = result.filter(item => checkFollowerFilter(item, appliedFilters.follower));
         }
         if (appliedFilters.engagement !== 'all') {
-          allData = allData.filter(item => checkEngagementFilter(item, appliedFilters.engagement));
+          result = result.filter(item => checkEngagementFilter(item, appliedFilters.engagement));
         }
         if (appliedFilters.activity !== 'all') {
-          allData = allData.filter(item => checkActivityFilter(item, appliedFilters.activity));
+          result = result.filter(item => checkActivityFilter(item, appliedFilters.activity));
         }
 
-        setAllFilteredData(allData);
-        setServerTotalElements(allData.length);
-        setServerTotalPages(Math.ceil(allData.length / PAGE_SIZE));
+        setAllData(result);
       } catch (err) {
         console.error('[InfluencersTab] 전체 데이터 로드 실패:', err);
         setError(err instanceof Error ? err.message : '알 수 없는 오류');
@@ -1140,7 +1085,7 @@ export function InfluencersTab() {
       }
     };
 
-    loadAllFiltered();
+    loadAllData();
   }, [
     appliedFilters.search,
     appliedFilters.category,
@@ -1149,8 +1094,8 @@ export function InfluencersTab() {
     appliedFilters.activity,
   ]);
 
-  // 데이터 소스 결정: 필터 활성 시 전체 캐시, 아니면 서버 페이지 데이터
-  const dataSource = hasActiveFilter ? allFilteredData : influencersWithDetail;
+  // 데이터 소스: 전체 데이터
+  const dataSource = allData;
 
   // 정렬 (sortField 있으면 항상 적용, dataSource 전체 대상)
   const sortedData = sortField
@@ -1204,22 +1149,16 @@ export function InfluencersTab() {
     })
     : dataSource;
 
-  // 페이징 분기
-  const paginatedInfluencers = hasActiveFilter
-    ? sortedData.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
-    : sortedData; // 서버 모드: 이미 서버에서 페이징됨
+  // 페이징
+  const paginatedInfluencers = sortedData.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
-  // totalPages/totalElements 분기
-  const totalPages = hasActiveFilter
-    ? Math.ceil(allFilteredData.length / PAGE_SIZE)
-    : serverTotalPages;
-  const totalElements = hasActiveFilter
-    ? allFilteredData.length
-    : serverTotalElements;
+  // totalPages/totalElements
+  const totalElements = allData.length;
+  const totalPages = Math.ceil(totalElements / PAGE_SIZE);
 
   // 카테고리 목록 추출
   const allCategories = Array.from(
-    new Set(influencersWithDetail.flatMap((item) => item?.dashInfluencer?.category || []))
+    new Set(allData.flatMap((item) => item?.dashInfluencer?.category || []))
   );
 
   if (loading) {
