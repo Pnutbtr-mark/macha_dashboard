@@ -43,7 +43,7 @@ export default async function handler(req, res) {
       if (handle && !influencerMap.has(handle)) {
         // 첫 번째 멘션 기준으로 인플루언서 정보 저장
         const thumbnailFile = props['displayUrl']?.files?.[0];
-        const thumbnail = thumbnailFile?.external?.url || thumbnailFile?.file?.url || 'https://via.placeholder.com/100';
+        const thumbnail = thumbnailFile?.external?.url || thumbnailFile?.file?.url || 'https://placehold.co/100';
 
         influencerMap.set(handle, {
           id: page.id,

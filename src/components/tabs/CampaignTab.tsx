@@ -1059,7 +1059,7 @@ function convertCampaignResultToContent(result: CampaignResultDto): ContentItem 
     influencerName: result.ownerFullName || result.ownerUsername,
     platform: 'instagram',
     type: getContentType(result.postType),
-    thumbnail: result.displayUrl || 'https://via.placeholder.com/300x400',
+    thumbnail: result.displayUrl || 'https://placehold.co/300x400',
     originalUrl: result.postUrl,
     downloadUrl: result.videoUrl || result.displayUrl,
     likes: result.likesCount || 0,
@@ -1291,7 +1291,11 @@ function CampaignDetailView({
 
       setNotionSeeding(seedingData);
       setCampaignResults(filteredResults);
-      setNotionContent(filteredResults.map(convertCampaignResultToContent));
+      // 성과 데이터가 모두 0/null인 항목 제외
+      const validResults = filteredResults.filter(r =>
+        (r.likesCount || 0) + (r.commentsCount || 0) + (r.videoPlayCount || 0) + (r.igPlayCount || 0) + (r.reshareCount || 0) > 0
+      );
+      setNotionContent(validResults.map(convertCampaignResultToContent));
     } catch (err) {
       console.error('[CampaignDetail] 상세 데이터 로드 실패:', err);
     } finally {
