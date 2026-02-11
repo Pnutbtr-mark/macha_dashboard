@@ -29,6 +29,7 @@ import { formatDateToMMDD, getDateRangeForPeriod, getLatestDateFromData } from '
 import type { PeriodType } from '../types';
 import { getCountryName, mapMediaType, mapAdStatus } from './converters';
 import { getLatestInsightTime, findMetricValue, findInsightValue } from './extractors';
+import { getResultActionTypes } from './optimizationGoalMap';
 
 /**
  * ActionValue 배열에서 ROAS 값 추출
@@ -41,24 +42,36 @@ function extractRoasValue(roasArray?: ActionValue[]): number {
 
 /**
  * actions 배열에서 총 결과 수 추출
- * 모든 action_type의 value를 합산
+ * allowedActionTypes가 있으면 해당 action_type만 필터링, 없으면 전체 합산
  */
-function extractTotalResults(actions?: ActionValue[]): number {
+function extractTotalResults(actions?: ActionValue[], allowedActionTypes?: string[]): number {
   if (!actions || actions.length === 0) return 0;
-  return actions.reduce((sum, action) => sum + (action.value || 0), 0);
+  const filtered = allowedActionTypes
+    ? actions.filter(a => allowedActionTypes.includes(a.action_type))
+    : actions;
+  return filtered.reduce((sum, action) => sum + (action.value || 0), 0);
 }
 
 /**
  * costPerActionType에서 가중 평균 결과당 비용 추출
  * actions와 매칭하여 (cost * count) / total_count 계산
+ * allowedActionTypes가 있으면 해당 action_type만 필터링
  */
-function extractCostPerResult(costPerActionType?: ActionValue[], actions?: ActionValue[]): number {
+function extractCostPerResult(costPerActionType?: ActionValue[], actions?: ActionValue[], allowedActionTypes?: string[]): number {
   if (!costPerActionType || costPerActionType.length === 0) return 0;
   if (!actions || actions.length === 0) return 0;
 
+  // allowedActionTypes가 있으면 해당 action_type만 필터링
+  const filteredActions = allowedActionTypes
+    ? actions.filter(a => allowedActionTypes.includes(a.action_type))
+    : actions;
+  const filteredCosts = allowedActionTypes
+    ? costPerActionType.filter(a => allowedActionTypes.includes(a.action_type))
+    : costPerActionType;
+
   // action_type을 키로 하는 맵 생성 (결과 수 조회용)
   const actionsMap = new Map<string, number>();
-  for (const action of actions) {
+  for (const action of filteredActions) {
     actionsMap.set(action.action_type, action.value || 0);
   }
 
@@ -66,7 +79,7 @@ function extractCostPerResult(costPerActionType?: ActionValue[], actions?: Actio
   let totalWeightedCost = 0;
   let totalCount = 0;
 
-  for (const costItem of costPerActionType) {
+  for (const costItem of filteredCosts) {
     const count = actionsMap.get(costItem.action_type) || 0;
     if (count > 0) {
       totalWeightedCost += (costItem.value || 0) * count;
@@ -942,6 +955,7 @@ export function mapToAdPerformanceFromCampaignDetail(
 
     // 각 광고세트의 소재에서 기간별 데이터 합산
     for (const adDetailObj of adSetMap.values()) {
+      const allowedActionTypes = getResultActionTypes(adDetailObj.dashAdSet.optimizationGoal);
       const childObjs = adDetailObj.adSetChildObjs || [];
 
       // 소재 중복 제거 (adId + 날짜 기준 - 같은 adId라도 날짜가 다르면 모두 유지)
@@ -970,9 +984,9 @@ export function mapToAdPerformanceFromCampaignDetail(
           currentImpressions += insight.impressions || 0;
           currentRoasWeighted += extractRoasValue(insight.purchaseRoas) * (insight.spend || 0);
           // 결과 수 및 결과당 비용 합산
-          const r = extractTotalResults(insight.actions);
+          const r = extractTotalResults(insight.actions, allowedActionTypes);
           currentResults += r;
-          currentCostPerResultWeighted += extractCostPerResult(insight.costPerActionType, insight.actions) * r;
+          currentCostPerResultWeighted += extractCostPerResult(insight.costPerActionType, insight.actions, allowedActionTypes) * r;
         }
         // 이전 기간 범위 내 데이터
         else if (insightDate >= prevStartDate && insightDate <= prevEndDate) {
@@ -982,9 +996,9 @@ export function mapToAdPerformanceFromCampaignDetail(
           prevImpressions += insight.impressions || 0;
           prevRoasWeighted += extractRoasValue(insight.purchaseRoas) * (insight.spend || 0);
           // 결과 수 및 결과당 비용 합산
-          const r = extractTotalResults(insight.actions);
+          const r = extractTotalResults(insight.actions, allowedActionTypes);
           prevResults += r;
-          prevCostPerResultWeighted += extractCostPerResult(insight.costPerActionType, insight.actions) * r;
+          prevCostPerResultWeighted += extractCostPerResult(insight.costPerActionType, insight.actions, allowedActionTypes) * r;
         }
       }
     }
@@ -1111,6 +1125,7 @@ function generateDailyAdData(
     }
 
     for (const adDetailObj of adSetMap.values()) {
+      const allowedActionTypes = getResultActionTypes(adDetailObj.dashAdSet.optimizationGoal);
       const adMap = new Map<string, typeof adDetailObj.adSetChildObjs[0]>();
       for (const child of (adDetailObj.adSetChildObjs || [])) {
         const adId = child.dashAdDetailEntity?.adId;
@@ -1127,7 +1142,7 @@ function generateDailyAdData(
 
         const dateStr = insight.time.split('T')[0];
         const existing = dateMap.get(dateStr) || { spend: 0, impressions: 0, clicks: 0, reach: 0, roasWeighted: 0, results: 0, costPerResultWeighted: 0 };
-        const r = extractTotalResults(insight.actions);
+        const r = extractTotalResults(insight.actions, allowedActionTypes);
         dateMap.set(dateStr, {
           spend: existing.spend + insight.spend,
           impressions: existing.impressions + insight.impressions,
@@ -1135,7 +1150,7 @@ function generateDailyAdData(
           reach: existing.reach + insight.reach,
           roasWeighted: existing.roasWeighted + extractRoasValue(insight.purchaseRoas) * insight.spend,
           results: existing.results + r,
-          costPerResultWeighted: existing.costPerResultWeighted + extractCostPerResult(insight.costPerActionType, insight.actions) * r,
+          costPerResultWeighted: existing.costPerResultWeighted + extractCostPerResult(insight.costPerActionType, insight.actions, allowedActionTypes) * r,
         });
       }
     }
@@ -1347,6 +1362,7 @@ export function mapToCampaignHierarchyFromCampaignDetail(
     // 광고세트별 성과 매핑 (중복 제거된 데이터 사용)
     const adSetsWithPerformance: AdSetWithPerformance[] = uniqueAdDetailObjs.map(adDetailObj => {
       const adSet = adDetailObj.dashAdSet;
+      const allowedActionTypes = getResultActionTypes(adSet.optimizationGoal);
       const childObjs = adDetailObj.adSetChildObjs || [];
 
       // 소재별로 기간 내 인사이트를 그룹핑
@@ -1388,10 +1404,10 @@ export function mapToCampaignHierarchyFromCampaignDetail(
         const adRoasWeighted = insights.reduce((sum, i) => sum + extractRoasValue(i?.purchaseRoas) * (i?.spend || 0), 0);
         const adRoas = adSpend > 0 ? adRoasWeighted / adSpend : 0;
         // 결과 수 및 결과당 비용 계산
-        const adResults = insights.reduce((sum, i) => sum + extractTotalResults(i?.actions), 0);
+        const adResults = insights.reduce((sum, i) => sum + extractTotalResults(i?.actions, allowedActionTypes), 0);
         const adCostPerResultWeighted = insights.reduce((sum, i) => {
-          const r = extractTotalResults(i?.actions);
-          return sum + extractCostPerResult(i?.costPerActionType, i?.actions) * r;
+          const r = extractTotalResults(i?.actions, allowedActionTypes);
+          return sum + extractCostPerResult(i?.costPerActionType, i?.actions, allowedActionTypes) * r;
         }, 0);
         const adCostPerResult = adResults > 0 ? adCostPerResultWeighted / adResults : 0;
 
@@ -1620,6 +1636,7 @@ export function convertInsightsToCampaignDetail(
 
       const adDetailResponseObjs = Array.from(adSetMap.entries()).map(([adsetId, adSetDetails]) => {
         const firstAdSetDetail = adSetDetails[0].dashAdDetailEntity;
+        const realAdSet = (account.dashAdSets || []).find(s => s.metaAdSetId === adsetId);
 
         // 가상의 DashAdSet 생성 (실제 광고세트 정보가 없으므로 가용 데이터로 구성)
         const dashAdSet: DashAdSet = {
@@ -1628,17 +1645,17 @@ export function convertInsightsToCampaignDetail(
           dashMemberId: firstAdSetDetail.dashMemberId,
           time: adSetDetails[0].dashAdAccountInsight.time,
           metaAdSetId: adsetId,
-          name: `광고세트 ${adsetId.slice(-6)}`, // 광고세트 이름 없음
-          status: 'ACTIVE',
-          effectiveStatus: 'ACTIVE',
-          dailyBudget: '0',
-          lifetimeBudget: '0',
-          billingEvent: 'IMPRESSIONS',
-          optimizationGoal: 'REACH',
-          bidStrategy: 'LOWEST_COST_WITHOUT_CAP',
-          startTime: adSetDetails[0].dashAdAccountInsight.time,
-          createdTime: adSetDetails[0].dashAdAccountInsight.createdAt || adSetDetails[0].dashAdAccountInsight.time,
-          updatedTime: adSetDetails[0].dashAdAccountInsight.updatedAt || adSetDetails[0].dashAdAccountInsight.time,
+          name: realAdSet?.name || `광고세트 ${adsetId.slice(-6)}`,
+          status: realAdSet?.status || 'ACTIVE',
+          effectiveStatus: realAdSet?.effectiveStatus || 'ACTIVE',
+          dailyBudget: realAdSet?.dailyBudget || '0',
+          lifetimeBudget: realAdSet?.lifetimeBudget || '0',
+          billingEvent: realAdSet?.billingEvent || 'IMPRESSIONS',
+          optimizationGoal: realAdSet?.optimizationGoal || 'REACH',
+          bidStrategy: realAdSet?.bidStrategy || 'LOWEST_COST_WITHOUT_CAP',
+          startTime: realAdSet?.startTime || adSetDetails[0].dashAdAccountInsight.time,
+          createdTime: realAdSet?.createdTime || adSetDetails[0].dashAdAccountInsight.createdAt || adSetDetails[0].dashAdAccountInsight.time,
+          updatedTime: realAdSet?.updatedTime || adSetDetails[0].dashAdAccountInsight.updatedAt || adSetDetails[0].dashAdAccountInsight.time,
           campaign: {
             campaignId: campaignId,
             name: dashAdCampaign.name,
@@ -1725,6 +1742,7 @@ export function mapToCampaignDailyData(
 
     // 소재 중복 제거 후 날짜별 합산
     for (const adDetailObj of adSetMap.values()) {
+      const allowedActionTypes = getResultActionTypes(adDetailObj.dashAdSet.optimizationGoal);
       const adMap = new Map<string, typeof adDetailObj.adSetChildObjs[0]>();
       for (const child of (adDetailObj.adSetChildObjs || [])) {
         const adId = child.dashAdDetailEntity?.adId;
@@ -1741,7 +1759,7 @@ export function mapToCampaignDailyData(
 
         const dateStr = insight.time.split('T')[0];
         const existing = dateMap.get(dateStr) || { spend: 0, impressions: 0, clicks: 0, reach: 0, roasWeighted: 0, results: 0, costPerResultWeighted: 0 };
-        const r = extractTotalResults(insight.actions);
+        const r = extractTotalResults(insight.actions, allowedActionTypes);
         dateMap.set(dateStr, {
           spend: existing.spend + insight.spend,
           impressions: existing.impressions + insight.impressions,
@@ -1749,7 +1767,7 @@ export function mapToCampaignDailyData(
           reach: existing.reach + insight.reach,
           roasWeighted: existing.roasWeighted + extractRoasValue(insight.purchaseRoas) * insight.spend,
           results: existing.results + r,
-          costPerResultWeighted: existing.costPerResultWeighted + extractCostPerResult(insight.costPerActionType, insight.actions) * r,
+          costPerResultWeighted: existing.costPerResultWeighted + extractCostPerResult(insight.costPerActionType, insight.actions, allowedActionTypes) * r,
         });
       }
     }
