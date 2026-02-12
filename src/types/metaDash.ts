@@ -435,4 +435,5 @@ export interface DashCampaignInfluencerParticipate {
   dashCampaign: DashCampaign;
   dashInfluencer: DashInfluencer;
   status: string;
+  postUrl?: string; // 게시물 URL
 }

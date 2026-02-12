@@ -1,10 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   BarChart3,
   User,
   TrendingUp,
   Megaphone,
-  RefreshCw,
   Instagram,
   LogOut,
   Loader2,
@@ -34,7 +33,6 @@ import {
   useProfileContent,
 } from './hooks/useApi';
 import { useChannelTalk } from './hooks/useChannelTalk';
-import { syncDashMember, syncDashAd } from './services/metaDashApi';
 
 // 탭 타입
 type TabType = 'profile' | 'ads' | 'campaign' | 'influencers' | 'applicants';
@@ -81,13 +79,12 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
     end: '2024-12-14',
   });
   const [localSeedingList, setLocalSeedingList] = useState<SeedingItem[]>([]);
-  const [syncing, setSyncing] = useState(false);
 
   // API 데이터 (Custom Hooks)
-  const { data: profileData, loading: profileLoading, refetch: refetchProfile, serverSyncTime: serverProfileSyncTime } = useProfileInsight();
+  const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useProfileInsight();
   const { data: dailyProfileData, loading: dailyProfileLoading, refetch: refetchDailyProfile } = useDailyProfileData(period);
   const { data: adData, loading: adLoading, refetch: refetchAd } = useAdPerformance(user.id);
-  const { data: dailyAdData, loading: dailyAdLoading, refetch: refetchDailyAd, serverSyncTime: serverAdSyncTime } = useDailyAdData(period, user.id);
+  const { data: dailyAdData, loading: dailyAdLoading, refetch: refetchDailyAd } = useDailyAdData(period, user.id);
   const { data: influencers, loading: influencersLoading } = useInfluencers();
   const { data: seedingList, loading: seedingLoading } = useSeedingList();
 
@@ -105,66 +102,6 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
   // 신규 hooks (Meta Dash API)
   const { data: followerDemographic, loading: followerDemographicLoading, refetch: refetchFollowerDemographic } = useFollowerDemographic();
   const { data: profileContent, loading: profileContentLoading, refetch: refetchProfileContent } = useProfileContent();
-
-  // 프로필 인사이트 동기화
-  const handleRefreshProfile = useCallback(async () => {
-    if (syncing) return; // 중복 클릭 방지
-    setSyncing(true);
-
-    try {
-      console.log('프로필 데이터 동기화 시작...');
-
-      // Sync API 호출 (Meta Dash)
-      let syncSuccess = false;
-      if (user?.id) {
-        syncSuccess = await syncDashMember(user.id);
-        console.log('프로필 동기화 결과:', syncSuccess);
-      }
-
-      // 프로필 관련 데이터 새로고침
-      await Promise.all([
-        refetchProfile(),
-        refetchDailyProfile(),
-        refetchFollowerDemographic(),
-        refetchProfileContent(),
-      ]);
-
-      console.log('프로필 데이터 새로고침 완료');
-    } catch (error) {
-      console.error('프로필 동기화 실패:', error);
-    } finally {
-      setSyncing(false);
-    }
-  }, [syncing, user?.id, refetchProfile, refetchDailyProfile, refetchFollowerDemographic, refetchProfileContent]);
-
-  // 광고 성과 동기화
-  const handleRefreshAds = useCallback(async () => {
-    if (syncing) return; // 중복 클릭 방지
-    setSyncing(true);
-
-    try {
-      console.log('광고 데이터 동기화 시작...');
-
-      // Sync API 호출 (광고 전용)
-      let syncSuccess = false;
-      if (user?.id) {
-        syncSuccess = await syncDashAd(user.id);
-        console.log('광고 동기화 결과:', syncSuccess);
-      }
-
-      // 광고 관련 데이터 새로고침
-      await Promise.all([
-        refetchAd(),
-        refetchDailyAd(),
-      ]);
-
-      console.log('광고 데이터 새로고침 완료');
-    } catch (error) {
-      console.error('광고 동기화 실패:', error);
-    } finally {
-      setSyncing(false);
-    }
-  }, [syncing, user?.id, refetchAd, refetchDailyAd]);
 
   // 탭 설정
   const tabs: { key: TabType; label: string; icon: typeof User }[] = [
@@ -302,33 +239,6 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
               onCustomDateChange={(start, end) => setCustomDateRange({ start, end })}
             />
 
-            {/* Last Sync Time & Sync Button - 프로필/광고 탭에서만 표시 */}
-            <div className="flex items-center gap-3">
-              {(activeTab === 'profile' ? serverProfileSyncTime : serverAdSyncTime) && (
-                <div className="text-sm text-slate-500">
-                  마지막 동기화: {(activeTab === 'profile' ? serverProfileSyncTime : serverAdSyncTime)?.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-                </div>
-              )}
-              {(activeTab === 'profile' || activeTab === 'ads') && (
-                <button
-                  onClick={activeTab === 'profile' ? handleRefreshProfile : handleRefreshAds}
-                  disabled={syncing}
-                  className={`flex items-center gap-2 px-3 py-1.5 text-white text-sm font-medium rounded-lg transition-colors ${
-                    syncing
-                      ? 'bg-primary-400 cursor-not-allowed'
-                      : 'bg-primary-600 hover:bg-primary-700'
-                  }`}
-                  title="데이터 동기화"
-                >
-                  {syncing ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <RefreshCw size={14} />
-                  )}
-                  {syncing ? '동기화 중...' : '동기화'}
-                </button>
-              )}
-            </div>
           </div>
         )}
 

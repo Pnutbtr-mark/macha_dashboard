@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Search, ChevronUp, ChevronDown, Heart, ExternalLink, Users, UserPlus, X, Instagram, MessageCircle, Calendar, Play, Eye, RefreshCw, Loader2 } from 'lucide-react';
-import type { DashInfluencerWithDetail, DashInfluencerPost, DashInfluencer, DashInfluencerDetail } from '../../types/metaDash';
+import { Search, ChevronUp, ChevronDown, Heart, ExternalLink, Users, UserPlus, X, Instagram, MessageCircle, Calendar, Play, Eye, RefreshCw, Loader2, Link2, Pencil } from 'lucide-react';
+import type { DashInfluencerWithDetail, DashInfluencerPost, DashInfluencer, DashInfluencerDetail, DashCampaignInfluencerParticipate } from '../../types/metaDash';
 import type { SeedingItem, Influencer } from '../../types';
 import { getProxiedImageUrl, isInstagramCdnUrl, getInstagramProfileImageUrl, getInstagramPostImageUrl } from '../../utils/imageProxy';
 import { formatNumber as formatNumberBase, formatPercent } from '../../utils/formatters';
@@ -550,6 +550,10 @@ interface ApplicantListTabProps {
   isSeeding?: boolean;
   // 되돌리기 콜백 (isSeeding 모드에서 사용)
   onRemoveFromSeeding?: (influencerIds: string[]) => void;
+  // 참여자 목록 (게시물 URL 조회용)
+  participants?: DashCampaignInfluencerParticipate[];
+  // 게시물 URL 업데이트 콜백
+  onPostUrlUpdate?: (influencerId: string, postUrl: string) => Promise<void>;
 }
 
 const PAGE_SIZE = 15;
@@ -565,12 +569,14 @@ function TableHeader({
   onSort,
   isAllSelected,
   onSelectAll,
+  isSeeding = false,
 }: {
   sortField: SortField | null;
   sortDirection: SortDirection;
   onSort: (field: SortField) => void;
   isAllSelected: boolean;
   onSelectAll: () => void;
+  isSeeding?: boolean;
 }) {
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronUp size={14} className="text-slate-300" />;
@@ -593,12 +599,17 @@ function TableHeader({
             className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
           />
         </th>
-        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap w-52">
+        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap w-48">
           프로필
         </th>
         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap w-36">
           활동분야
         </th>
+        {isSeeding && (
+          <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap w-24">
+            링크
+          </th>
+        )}
         <th className={`${headerBaseClass} w-24`} onClick={() => onSort('followerCount')}>
           <div className="flex items-center justify-end gap-1 w-full">
             팔로워수 <SortIcon field="followerCount" />
@@ -642,12 +653,18 @@ function TableRow({
   item,
   isSelected,
   onSelect,
-  onClick
+  onClick,
+  isSeeding = false,
+  postUrl,
+  onLinkClick,
 }: {
   item: DashInfluencerWithDetail;
   isSelected: boolean;
   onSelect: () => void;
   onClick: () => void;
+  isSeeding?: boolean;
+  postUrl?: string;
+  onLinkClick?: () => void;
 }) {
   const influencer = item.dashInfluencer;
   const detail = item.dashInfluencerDetail;
@@ -760,6 +777,42 @@ function TableRow({
           <span className="text-gray-400">-</span>
         )}
       </td>
+
+      {/* 링크 (참여 인플루언서 모드에서만 표시) */}
+      {isSeeding && (
+        <td className="px-4 py-4 w-24" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-center gap-1">
+            {postUrl ? (
+              <>
+                <a
+                  href={postUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                >
+                  <Link2 size={12} />
+                  링크
+                </a>
+                <button
+                  onClick={() => onLinkClick?.()}
+                  className="p-1 hover:bg-slate-100 rounded transition-colors"
+                  title="링크 수정"
+                >
+                  <Pencil size={12} className="text-slate-400" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => onLinkClick?.()}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-orange-600 hover:bg-orange-50 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
+              >
+                <Link2 size={12} />
+                링크 입력
+              </button>
+            )}
+          </div>
+        </td>
+      )}
 
       {/* 팔로워수 */}
       <td className="px-4 py-4 text-sm text-slate-700 font-medium w-24">
@@ -890,6 +943,83 @@ function ActionBar({
   );
 }
 
+// 게시물 URL 입력 모달
+function PostUrlModal({
+  isOpen,
+  onClose,
+  onSave,
+  initialUrl,
+  influencerName,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (url: string) => Promise<void>;
+  initialUrl: string;
+  influencerName: string;
+}) {
+  const [url, setUrl] = useState(initialUrl);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setUrl(initialUrl);
+      setError(null);
+    }
+  }, [isOpen, initialUrl]);
+
+  if (!isOpen) return null;
+
+  const handleSave = async () => {
+    if (!url.trim()) {
+      setError('URL을 입력해주세요.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(url.trim());
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+        <button onClick={onClose} className="absolute top-3 right-3 p-1.5 hover:bg-slate-100 rounded-full transition-colors">
+          <X size={18} className="text-slate-500" />
+        </button>
+        <h3 className="text-lg font-bold text-slate-900 mb-1">게시물 링크</h3>
+        <p className="text-sm text-slate-500 mb-4">{influencerName}의 게시물 URL을 입력해주세요.</p>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://www.instagram.com/p/..."
+          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-orange-400 mb-2"
+          autoFocus
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+        />
+        {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+            취소
+          </button>
+          <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
+            {saving && <Loader2 size={14} className="animate-spin" />}
+            저장
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // DashInfluencerWithDetail을 SeedingItem으로 변환
 function convertInfluencerToSeeding(item: DashInfluencerWithDetail, campaignId: string): SeedingItem {
   const inf = item.dashInfluencer;
@@ -928,6 +1058,8 @@ export function ApplicantListTab({
   campaignId,
   isSeeding = false,
   onRemoveFromSeeding,
+  participants,
+  onPostUrlUpdate,
 }: ApplicantListTabProps) {
   // 필터 상태
   const [searchQuery, setSearchQuery] = useState('');
@@ -943,6 +1075,27 @@ export function ApplicantListTab({
   // 상세 모달 상태
   const [selectedInfluencer, setSelectedInfluencer] = useState<DashInfluencerWithDetail | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // 게시물 URL 모달 상태
+  const [postUrlModalOpen, setPostUrlModalOpen] = useState(false);
+  const [postUrlTarget, setPostUrlTarget] = useState<{ influencerId: string; name: string } | null>(null);
+
+  // 인플루언서 ID로 게시물 URL 조회
+  const getPostUrl = useCallback((influencerId: string): string | undefined => {
+    return participants?.find(p => p.dashInfluencer.id === influencerId)?.postUrl;
+  }, [participants]);
+
+  // 링크 버튼 클릭
+  const handleLinkClick = useCallback((influencerId: string, name: string) => {
+    setPostUrlTarget({ influencerId, name });
+    setPostUrlModalOpen(true);
+  }, []);
+
+  // 게시물 URL 저장
+  const handlePostUrlSave = useCallback(async (url: string) => {
+    if (!postUrlTarget || !onPostUrlUpdate) return;
+    await onPostUrlUpdate(postUrlTarget.influencerId, url);
+  }, [postUrlTarget, onPostUrlUpdate]);
 
   // 정렬 핸들러
   const handleSort = (field: SortField) => {
@@ -1144,6 +1297,7 @@ export function ApplicantListTab({
                 onSort={handleSort}
                 isAllSelected={isAllSelected}
                 onSelectAll={handleSelectAll}
+                isSeeding={isSeeding}
               />
               <tbody>
                 {paginatedInfluencers.map((item) => (
@@ -1153,6 +1307,9 @@ export function ApplicantListTab({
                     isSelected={selectedIds.has(item.dashInfluencer.id)}
                     onSelect={() => handleSelectInfluencer(item.dashInfluencer.id)}
                     onClick={() => handleRowClick(item)}
+                    isSeeding={isSeeding}
+                    postUrl={getPostUrl(item.dashInfluencer.id)}
+                    onLinkClick={() => handleLinkClick(item.dashInfluencer.id, item.dashInfluencer.name || '-')}
                   />
                 ))}
               </tbody>
@@ -1228,6 +1385,18 @@ export function ApplicantListTab({
           setIsDetailModalOpen(false);
           setSelectedInfluencer(null);
         }}
+      />
+
+      {/* 게시물 URL 입력 모달 */}
+      <PostUrlModal
+        isOpen={postUrlModalOpen}
+        onClose={() => {
+          setPostUrlModalOpen(false);
+          setPostUrlTarget(null);
+        }}
+        onSave={handlePostUrlSave}
+        initialUrl={postUrlTarget ? (getPostUrl(postUrlTarget.influencerId) || '') : ''}
+        influencerName={postUrlTarget?.name || ''}
       />
     </div>
   );

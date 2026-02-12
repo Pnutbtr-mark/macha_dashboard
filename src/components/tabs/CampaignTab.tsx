@@ -40,7 +40,7 @@ import {
   type CampaignResultDto,
   type CampaignWithDetail,
 } from '../../services/notionApi';
-import { fetchDashInfluencersWithDetail, participateCampaignInfluencer, fetchCampaignParticipants, updateParticipantStatus } from '../../services/metaDashApi';
+import { fetchDashInfluencersWithDetail, participateCampaignInfluencer, fetchCampaignParticipants, updateParticipantStatus, updateParticipantPostUrl } from '../../services/metaDashApi';
 import type { DashInfluencerWithDetail, DashCampaignInfluencerParticipate } from '../../types/metaDash';
 import type {
   Influencer,
@@ -1638,6 +1638,18 @@ function CampaignDetailView({
                 onAddToSeeding={() => {}}
                 campaignId={campaign.id}
                 isSeeding={true}
+                participants={participants}
+                onPostUrlUpdate={async (influencerId, postUrl) => {
+                  // 인플루언서 ID → 참여 레코드 ID 변환
+                  const participateIds = participants
+                    .filter(p => p.dashInfluencer.id === influencerId)
+                    .map(p => p.id);
+
+                  if (participateIds.length > 0) {
+                    await updateParticipantPostUrl(participateIds, postUrl);
+                    await loadParticipants();
+                  }
+                }}
                 onRemoveFromSeeding={async (influencerIds) => {
                   // API 호출: 상태를 WAIT로 변경하여 신청자 리스트로 되돌리기
                   try {
@@ -1648,7 +1660,6 @@ function CampaignDetailView({
 
                     if (participateIds.length > 0) {
                       await updateParticipantStatus(participateIds, 'WAIT');
-                      console.log('[CampaignDetail] 상태 WAIT로 변경:', participateIds.length, '명');
                     }
 
                     // 참여자 목록 새로고침

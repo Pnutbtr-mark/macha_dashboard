@@ -350,3 +350,21 @@ export async function updateParticipantStatus(
   );
   return response.result?.[0] ?? false;
 }
+
+// 참여 인플루언서 게시물 URL 업데이트
+export async function updateParticipantPostUrl(
+  participateIds: string[],
+  postUrl: string
+): Promise<boolean> {
+  const response = await fetchMetaDash<MetaDashResponse<boolean[]>>(
+    `/api/v1/dash-campaign-influencer-participate/post-url`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({
+        participateIds,
+        postUrl,
+      }),
+    }
+  );
+  return response.result?.[0] ?? false;
+}
