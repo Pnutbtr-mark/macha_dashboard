@@ -607,7 +607,7 @@ function TableHeader({
         </th>
         {isSeeding && (
           <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap w-24">
-            링크
+            게시물 링크
           </th>
         )}
         <th className={`${headerBaseClass} w-24`} onClick={() => onSort('followerCount')}>
