@@ -362,6 +362,47 @@ export interface DashInfluencerWithDetail {
 }
 
 // ============================================
+// 광고 통계/상세 분리 API 타입 (신규)
+// ============================================
+
+// 통계 API 응답 (/api/v1/dash-ad-statistics/summary-all/{dashMemberId})
+export interface DashAdStatisticsResponse {
+  campaignId: string;
+  campaignName: string;
+  status: string;
+  dashAdSetResponses: DashAdSetStatisticsResponse[];
+}
+
+export interface DashAdSetStatisticsResponse {
+  adSetName: string;
+  status: string;
+  responses: DashAdStatisticsInsight[];
+}
+
+export interface DashAdStatisticsInsight {
+  dashMemberId: string;
+  metaAdAccountId: string;
+  adId: string;
+  time: string; // "2026-02-26"
+  impressions: number;
+  clicks: number;
+  reach: number;
+  spend: number;
+  cpc: number;
+  ctr: number;
+  purchaseRoas: ActionValue[];
+}
+
+// 상세 API 응답 (/api/v1/dash-ad/detail/ad-detail)
+export interface DashAdDetailInfo {
+  adId: string;
+  thumbnailUrl: string;
+  name: string;
+  status: string;
+  message: string;
+}
+
+// ============================================
 // 광고 캠페인 API 타입 (신규)
 // ============================================
 

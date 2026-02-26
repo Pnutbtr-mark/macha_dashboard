@@ -12,6 +12,8 @@ import type {
   DashAdCampaignDetailItem,
 } from '../types/metaDash';
 import {
+  fetchDashAdStatisticsSummary,
+  fetchDashAdDetailInfo,
   fetchDashAdInsight,
 } from '../services/metaDashApi';
 import {
@@ -20,15 +22,13 @@ import {
   mapToCampaignPerformanceFromCampaignDetail,
   mapToCampaignHierarchyFromCampaignDetail,
   mapToCampaignDailyData,
+  convertStatisticsToCampaignDetail,
   convertInsightsToCampaignDetail,
 } from '../utils/metaDashMapper';
 import {
-  cachedFetch,
-  forceFetch,
-  invalidateCache,
-  createCacheKey,
-  CACHE_CONFIG,
-} from '../utils/apiCache';
+  cachedSessionFetch,
+  clearSessionCache,
+} from '../utils/sessionCache';
 import {
   AD_PERFORMANCE,
   DAILY_AD_DATA,
@@ -67,33 +67,88 @@ interface AdState {
   reset: () => void;
 }
 
+/** sessionStorage 캐시 TTL: 30분 */
+const SESSION_CACHE_TTL = 30 * 60 * 1000;
+
 /**
- * 광고 데이터 통합 조회 함수
- * 단일 API 호출 후 어댑터로 변환 (백엔드가 전체 기간 데이터를 반환)
+ * 기존 my-insight API로 폴백
+ * summary-all이 빈 데이터일 때 사용
+ * my-insight 데이터를 convertInsightsToCampaignDetail로 변환하여
+ * 기존 매퍼와 호환되는 형태로 반환
  */
+async function fetchLegacyAdData(
+  userId: string,
+  today: string
+): Promise<{
+  campaignList: DashAdListItem[];
+  campaignDetails: DashAdCampaignDetailItem[];
+}> {
+  // 오늘 기준 3일치 조회
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 3);
+  const time = startDate.toISOString().split('T')[0];
+
+  const adInsights = await cachedSessionFetch(
+    `legacy_insight_${userId}_${today}`,
+    () => fetchDashAdInsight(userId, time, today),
+    SESSION_CACHE_TTL
+  );
+
+  // my-insight 데이터를 DashAdCampaignDetailItem[]로 변환
+  const campaignDetails = convertInsightsToCampaignDetail(adInsights);
+
+  return { campaignList: [], campaignDetails };
+}
+
 async function fetchAllAdDataBatch(
   userId: string
 ): Promise<{
   campaignList: DashAdListItem[];
   campaignDetails: DashAdCampaignDetailItem[];
 }> {
-  // 오늘 기준 3일치 데이터 조회
-  const today = new Date();
-  const threeDaysAgo = new Date(today);
-  threeDaysAgo.setDate(today.getDate() - 2);
-  const startDate = threeDaysAgo.toISOString().split('T')[0];
-  const endDate = new Date().toISOString().split('T')[0];
-  const accountsWithInsights = await fetchDashAdInsight(userId, startDate, endDate);
+  const today = new Date().toISOString().split('T')[0];
+  // 오늘 기준 3일 전 (기존 my-insight와 동일 범위)
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 3);
+  const time = startDate.toISOString().split('T')[0];
 
-  // 데이터가 없으면 빈 배열 반환
-  if (!accountsWithInsights || accountsWithInsights.length === 0) {
-    return { campaignList: [], campaignDetails: [] };
+  // 1. 통계 전체 조회 (sessionStorage 캐싱)
+  const statistics = await cachedSessionFetch(
+    `statistics_${userId}_${today}`,
+    () => fetchDashAdStatisticsSummary(userId, time, today),
+    SESSION_CACHE_TTL
+  );
+
+  // 신규 API에 데이터가 있으면 신규 플로우 사용
+  if (statistics && statistics.length > 0) {
+    // 2. 응답에서 모든 adId 추출 (중복 제거)
+    const adIdSet = new Set<string>();
+    for (const campaign of statistics) {
+      for (const adSetResp of (campaign.dashAdSetResponses || [])) {
+        for (const insight of (adSetResp.responses || [])) {
+          if (insight.adId) adIdSet.add(insight.adId);
+        }
+      }
+    }
+    const adIds = Array.from(adIdSet);
+
+    // 3. 광고별 상세 조회 (sessionStorage 캐싱)
+    const adDetails = adIds.length > 0
+      ? await cachedSessionFetch(
+          `detail_${userId}_${today}`,
+          () => fetchDashAdDetailInfo(adIds, today),
+          SESSION_CACHE_TTL
+        )
+      : [];
+
+    // 4. 어댑터로 기존 매퍼가 기대하는 형태로 변환
+    const campaignDetails = convertStatisticsToCampaignDetail(statistics, adDetails);
+    return { campaignList: [], campaignDetails };
   }
 
-  // 어댑터로 기존 매퍼가 기대하는 형태로 변환
-  const campaignDetails = convertInsightsToCampaignDetail(accountsWithInsights);
-
-  return { campaignList: [], campaignDetails };
+  // 신규 API 데이터 없음 → 기존 API 폴백
+  console.log('[AdStore] summary-all 데이터 없음, 기존 API로 폴백');
+  return fetchLegacyAdData(userId, today);
 }
 
 /**
@@ -148,12 +203,8 @@ export const useAdStore = create<AdState>((set, get) => ({
     set({ loading: true, error: null, currentUserId: userId });
 
     try {
-      // 캐싱과 함께 모든 광고 데이터 한 번에 조회
-      const { campaignList, campaignDetails } = await cachedFetch(
-        createCacheKey('ad', 'all', userId),
-        () => fetchAllAdDataBatch(userId),
-        CACHE_CONFIG.AD_TTL
-      );
+      // sessionStorage 캐싱으로 모든 광고 데이터 조회
+      const { campaignList, campaignDetails } = await fetchAllAdDataBatch(userId);
 
       // 서버 동기화 시간 추출
       const serverSyncTime = extractServerSyncTime(campaignDetails);
@@ -213,12 +264,9 @@ export const useAdStore = create<AdState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      // 캐시를 무시하고 강제로 새로 가져옴
-      const { campaignList, campaignDetails } = await forceFetch(
-        createCacheKey('ad', 'all', userId),
-        () => fetchAllAdDataBatch(userId),
-        CACHE_CONFIG.AD_TTL
-      );
+      // sessionStorage 캐시 무효화 후 새로 가져옴
+      clearSessionCache('macha_ad_');
+      const { campaignList, campaignDetails } = await fetchAllAdDataBatch(userId);
 
       // 서버 동기화 시간 추출
       const serverSyncTime = extractServerSyncTime(campaignDetails);
@@ -299,7 +347,7 @@ export const useAdStore = create<AdState>((set, get) => ({
 
   // Store 리셋
   reset: () => {
-    invalidateCache('ad');
+    clearSessionCache('macha_ad_');
     set({
       rawCampaignList: null,
       rawCampaignDetails: null,

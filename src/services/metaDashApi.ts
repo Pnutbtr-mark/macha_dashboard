@@ -15,6 +15,8 @@ import type {
   DashAdListItem,
   DashAdCampaignDetailItem,
   DashCampaignInfluencerParticipate,
+  DashAdStatisticsResponse,
+  DashAdDetailInfo,
 } from '../types/metaDash';
 
 const BASE_URL = 'https://matcha.pnutbutter.kr';
@@ -49,13 +51,24 @@ async function fetchMetaDash<T>(
         ...options,
       });
 
-      clearTimeout(timeoutId);
-
       if (!response.ok) {
+        clearTimeout(timeoutId);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const text = await response.text();
+      clearTimeout(timeoutId);
+      if (!text) {
+        console.log('[MetaDashAPI] 빈 응답 수신, 빈 result 반환');
+        return { result: [] } as T;
+      }
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error(`JSON 파싱 실패: ${text.substring(0, 200)}`);
+      }
       console.log('[MetaDashAPI] Response:', data);
 
       // responseCode 체크
@@ -63,7 +76,7 @@ async function fetchMetaDash<T>(
         throw new Error(`API Error Code: ${data.responseCode} - ${data.message}`);
       }
 
-      return data;
+      return data as T;
     } catch (error) {
       clearTimeout(timeoutId);
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -73,8 +86,9 @@ async function fetchMetaDash<T>(
         lastError = new Error(`API 요청 타임아웃 (${timeoutMs / 1000}초 초과)`);
       }
 
-      // 네트워크 에러 (QUIC, Failed to fetch 등)는 재시도
-      const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
+      // 네트워크 에러 (Failed to fetch, ERR_HTTP2_PROTOCOL_ERROR, ERR_QUIC_PROTOCOL_ERROR 등)는 재시도
+      // fetch 스펙 상 TypeError는 네트워크 실패 시에만 발생
+      const isNetworkError = error instanceof TypeError;
       const isRetryable = isNetworkError || (error instanceof Error && error.name === 'AbortError');
 
       if (isRetryable && attempt < maxRetries) {
@@ -273,6 +287,35 @@ export async function fetchDashInfluencersWithDetail(
     last: true,
     empty: true
   };
+}
+
+// 통계 전체 조회 (time 파라미터 필수)
+export async function fetchDashAdStatisticsSummary(
+  dashMemberId: string,
+  time: string, // 시작 날짜 (YYYY-MM-DD 형식)
+  endTime: string // 종료 날짜 (YYYY-MM-DD 형식)
+): Promise<DashAdStatisticsResponse[]> {
+  const response = await fetchMetaDash<MetaDashResponse<DashAdStatisticsResponse[]>>(
+    `/api/v1/dash-ad-statistics/summary-all/${dashMemberId}?time=${time}&endTime=${endTime}`,
+    undefined,
+    60000 // 60초 타임아웃
+  );
+  return response.result || [];
+}
+
+// 광고별 상세 조회
+export async function fetchDashAdDetailInfo(
+  adIds: string[],
+  time: string
+): Promise<DashAdDetailInfo[]> {
+  const params = new URLSearchParams();
+  adIds.forEach(id => params.append('adIds', id));
+  params.append('time', time);
+
+  const response = await fetchMetaDash<MetaDashResponse<DashAdDetailInfo[]>>(
+    `/api/v1/dash-ad/detail/ad-detail?${params.toString()}`
+  );
+  return response.result || [];
 }
 
 // 11. 광고 캠페인 목록 조회

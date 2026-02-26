@@ -9,7 +9,13 @@ import type {
   DashAdSet,
   DashAdCampaignDetailItem,
   DashAdCampaign,
+  DashAdAccount,
+  DashAdDetailEntity,
   ActionValue,
+  DashAdStatisticsResponse,
+  DashAdDetailInfo,
+  AdDetailResponseObj,
+  AdSetChildObj,
 } from '../types/metaDash';
 import type {
   ProfileInsight,
@@ -1683,6 +1689,144 @@ export function convertInsightsToCampaignDetail(
   });
 
   return result;
+}
+
+/**
+ * 새 통계/상세 분리 API 응답 → DashAdCampaignDetailItem[]로 변환
+ * 기존 *FromCampaignDetail 매퍼들을 그대로 사용 가능
+ *
+ * 주의: 새 API에 actions/costPerActionType 필드가 없어
+ * results/costPerResult는 0으로 반환됨
+ */
+export function convertStatisticsToCampaignDetail(
+  statistics: DashAdStatisticsResponse[],
+  adDetails: DashAdDetailInfo[]
+): DashAdCampaignDetailItem[] {
+  // adDetails를 Map으로 인덱싱 (adId 기준 빠른 조회)
+  const adDetailMap = new Map<string, DashAdDetailInfo>();
+  for (const detail of adDetails) {
+    adDetailMap.set(detail.adId, detail);
+  }
+
+  return statistics.map(campaign => {
+    // DashAdCampaign 생성
+    const dashAdCampaign: DashAdCampaign = {
+      id: campaign.campaignId,
+      metaId: campaign.campaignId,
+      dashMemberId: '',
+      adAccountId: '',
+      time: '',
+      status: campaign.status || 'ACTIVE',
+      name: campaign.campaignName || `캠페인 ${campaign.campaignId.slice(-6)}`,
+      effectiveStatus: campaign.status || 'ACTIVE',
+      objective: 'OUTCOME_TRAFFIC',
+      startTime: '',
+      createdTime: '',
+      updatedTime: '',
+    };
+
+    // 더미 DashAdAccount (실제 계정 정보 없음)
+    const dashAdAccount: DashAdAccount = {
+      id: '',
+      metaAccountId: '',
+      name: '',
+      dashMemberId: '',
+      accountStatus: 1,
+      currency: 'KRW',
+      connected: true,
+      lastSyncedAt: '',
+    };
+
+    // 광고세트별 AdDetailResponseObj 생성
+    const adDetailResponseObjs: AdDetailResponseObj[] = (campaign.dashAdSetResponses || []).map(adSetResp => {
+      // 합성 키: campaignId + adSetName (metaAdSetId 부재)
+      const syntheticAdSetId = `${campaign.campaignId}_${adSetResp.adSetName}`;
+
+      const dashAdSet: DashAdSet = {
+        id: syntheticAdSetId,
+        adAccountId: '',
+        dashMemberId: '',
+        time: '',
+        metaAdSetId: syntheticAdSetId,
+        name: adSetResp.adSetName || `광고세트`,
+        status: adSetResp.status || 'ACTIVE',
+        effectiveStatus: adSetResp.status || 'ACTIVE',
+        dailyBudget: '0',
+        lifetimeBudget: '0',
+        billingEvent: 'IMPRESSIONS',
+        optimizationGoal: 'REACH',
+        bidStrategy: 'LOWEST_COST_WITHOUT_CAP',
+        startTime: '',
+        createdTime: '',
+        updatedTime: '',
+        campaign: {
+          campaignId: campaign.campaignId,
+          name: campaign.campaignName,
+          objective: 'OUTCOME_TRAFFIC',
+        },
+      };
+
+      // 각 인사이트를 AdSetChildObj로 변환
+      const adSetChildObjs: AdSetChildObj[] = (adSetResp.responses || []).map(insight => {
+        const adDetail = adDetailMap.get(insight.adId);
+
+        // DashAdDetailEntity 생성
+        const dashAdDetailEntity: DashAdDetailEntity = {
+          id: insight.adId,
+          dashMemberId: insight.dashMemberId || '',
+          time: insight.time,
+          adId: insight.adId,
+          adName: adDetail?.name || `광고 ${insight.adId.slice(-6)}`,
+          status: adDetail?.status || 'ACTIVE',
+          effectiveStatus: adDetail?.status || 'ACTIVE',
+          campaignId: campaign.campaignId,
+          adsetId: syntheticAdSetId,
+          creativeId: '',
+          creativeName: '',
+          thumbnailUrl: adDetail?.thumbnailUrl || '',
+          pageId: '',
+          instagramUserId: '',
+          videoId: null,
+          title: null,
+          message: adDetail?.message || null,
+          imageUrl: adDetail?.thumbnailUrl || null,
+          imageHash: null,
+          callToActionType: null,
+          callToActionLink: null,
+        };
+
+        // DashAdAccountInsight 생성
+        const dashAdAccountInsight: DashAdAccountInsight = {
+          id: `${insight.adId}_${insight.time}`,
+          dashMemberId: insight.dashMemberId || '',
+          metaAdAccountId: insight.metaAdAccountId || '',
+          adId: insight.adId,
+          time: insight.time,
+          impressions: insight.impressions || 0,
+          clicks: insight.clicks || 0,
+          reach: insight.reach || 0,
+          spend: insight.spend || 0,
+          cpc: insight.cpc ?? null,
+          ctr: insight.ctr || 0,
+          lastSyncedAt: '',
+          createdAt: '',
+          updatedAt: '',
+          // actions/costPerActionType 없음 → undefined (매퍼에서 0 반환)
+          actions: undefined,
+          actionValues: undefined,
+          purchaseRoas: insight.purchaseRoas,
+          webSitePurchaseRoas: undefined,
+          costPerActionType: undefined,
+        };
+
+        return { dashAdDetailEntity, dashAdAccountInsight };
+      });
+
+      return { dashAdSet, adSetChildObjs };
+    });
+
+    return { dashAdCampaign, dashAdAccount, adDetailResponseObjs };
+  });
 }
 
 // 13. 캠페인별 일별 데이터 변환
