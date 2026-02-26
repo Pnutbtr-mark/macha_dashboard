@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import type {
   ProfileInsight,
   DailyProfileData,
-  AdPerformance,
-  DailyAdData,
   Influencer,
   SeedingItem,
   AffiliateLink,
@@ -11,15 +9,10 @@ import type {
   AIAnalysis,
   FollowerDemographic,
   ProfileContentItem,
-  CampaignPerformance,
-  CampaignHierarchy,
 } from '../types';
 import {
   PROFILE_INSIGHT,
   DAILY_PROFILE_DATA,
-  AD_PERFORMANCE,
-  DAILY_AD_DATA,
-  CAMPAIGN_PERFORMANCE_DATA,
   INFLUENCERS,
   SEEDING_LIST,
   AFFILIATE_LINKS,
@@ -32,18 +25,12 @@ import {
   fetchDashFollowers,
   fetchDashFollowerInsight,
   fetchDashMedias,
-  fetchDashAdInsight,
 } from '../services/metaDashApi';
 import {
   mapToProfileInsight,
   mapToDailyProfileData,
   mapToFollowerDemographic,
   mapToContentItems,
-  mapToAdPerformanceFromCampaignDetail,
-  mapToDailyAdDataFromCampaignDetail,
-  mapToCampaignPerformanceFromCampaignDetail,
-  mapToCampaignHierarchyFromCampaignDetail,
-  convertInsightsToCampaignDetail,
 } from '../utils/metaDashMapper';
 
 // ============================================
@@ -198,137 +185,6 @@ export function useDailyProfileData(period: string): ApiResponse<DailyProfileDat
   }, [fetchData]);
 
   return { data, loading, error, refetch: fetchData, lastUpdated };
-}
-
-// ============================================
-// 광고 성과 (Meta Dash API)
-// ============================================
-interface AdPerformanceResult {
-  adPerformance: AdPerformance | null;
-  campaignData: CampaignPerformance[];
-  campaignHierarchy: CampaignHierarchy[];  // 캠페인 계층 구조 추가
-}
-
-export function useAdPerformance(userId?: string): ApiResponse<AdPerformanceResult> {
-  const [data, setData] = useState<AdPerformanceResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-  const fetchData = useCallback(async () => {
-    if (!userId) {
-      setLoading(false);
-      setData({
-        adPerformance: AD_PERFORMANCE,
-        campaignData: CAMPAIGN_PERFORMANCE_DATA,
-        campaignHierarchy: [],
-      });
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      // 서버에 적재된 모든 광고 데이터 조회
-      const startDate = '2020-01-01';
-      const endDate = new Date().toISOString().split('T')[0];
-      const accountsWithInsights = await fetchDashAdInsight(userId, startDate, endDate);
-
-      // 어댑터로 기존 매퍼가 기대하는 형태로 변환
-      const allCampaignDetails = convertInsightsToCampaignDetail(accountsWithInsights);
-
-      // 데이터 변환
-      const adPerformance = mapToAdPerformanceFromCampaignDetail(allCampaignDetails);
-      const campaignData = mapToCampaignPerformanceFromCampaignDetail(allCampaignDetails);
-      const campaignHierarchy = mapToCampaignHierarchyFromCampaignDetail(allCampaignDetails);
-
-      setData({ adPerformance, campaignData, campaignHierarchy });
-      setError(null);
-    } catch (err) {
-      console.error('광고 성과 조회 실패:', err);
-      setError(err instanceof Error ? err.message : '데이터를 불러올 수 없습니다');
-      // 폴백: 더미 데이터
-      setData({
-        adPerformance: AD_PERFORMANCE,
-        campaignData: CAMPAIGN_PERFORMANCE_DATA,
-        campaignHierarchy: [],
-      });
-    } finally {
-      setLoading(false);
-      setLastUpdated(new Date());
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { data, loading, error, refetch: fetchData, lastUpdated };
-}
-
-// ============================================
-// 일별 광고 데이터 (Meta Dash API)
-// ============================================
-export function useDailyAdData(period: string, userId?: string): ApiResponse<DailyAdData[]> {
-  const [data, setData] = useState<DailyAdData[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [serverSyncTime, setServerSyncTime] = useState<Date | null>(null);
-
-  const fetchData = useCallback(async () => {
-    if (!userId) {
-      setLoading(false);
-      setData(DAILY_AD_DATA);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      // 서버에 적재된 모든 광고 데이터 조회
-      const startDate = '2020-01-01';
-      const endDate = new Date().toISOString().split('T')[0];
-      const accountsWithInsights = await fetchDashAdInsight(userId, startDate, endDate);
-
-      // 어댑터로 기존 매퍼가 기대하는 형태로 변환
-      const allCampaignDetails = convertInsightsToCampaignDetail(accountsWithInsights);
-
-      // 서버 동기화 시간 추출 (광고 계정의 lastSyncedAt)
-      const syncTimes: Date[] = [];
-      accountsWithInsights.forEach(account => {
-        if (account.dashAdAccount?.lastSyncedAt) {
-          const timeStr = account.dashAdAccount.lastSyncedAt;
-          syncTimes.push(new Date(timeStr.endsWith('Z') ? timeStr : timeStr + 'Z'));
-        }
-      });
-      if (syncTimes.length > 0) {
-        const latestSyncTime = syncTimes.sort((a, b) => b.getTime() - a.getTime())[0];
-        setServerSyncTime(latestSyncTime);
-      }
-
-      // 데이터 변환
-      const dailyData = mapToDailyAdDataFromCampaignDetail(allCampaignDetails);
-      setData(dailyData);
-      setError(null);
-    } catch (err) {
-      console.error('일별 광고 데이터 조회 실패:', err);
-      setError(err instanceof Error ? err.message : '데이터를 불러올 수 없습니다');
-      // 폴백: 더미 데이터
-      setData(DAILY_AD_DATA);
-    } finally {
-      setLoading(false);
-      setLastUpdated(new Date());
-    }
-  }, [userId, period]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { data, loading, error, refetch: fetchData, lastUpdated, serverSyncTime };
 }
 
 // ============================================

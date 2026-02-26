@@ -1,16 +1,24 @@
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { useAdPerformance } from '../../../hooks/useApi';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useAdStore } from '../../../stores/adStore';
 
 export function AdSetDetailPage() {
   const { campaignId, adSetId } = useParams<{ campaignId: string; adSetId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: adData, loading } = useAdPerformance(user?.id);
+  const { campaignHierarchy, loading, fetchAllData } = useAdStore();
+
+  // 초기 데이터 로드
+  useEffect(() => {
+    if (user?.id) {
+      fetchAllData(user.id);
+    }
+  }, [user?.id, fetchAllData]);
 
   // 캠페인 찾기
-  const campaign = adData?.campaignHierarchy?.find(
+  const campaign = campaignHierarchy.find(
     (c) => c.campaignId === campaignId
   );
 

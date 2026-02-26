@@ -22,8 +22,6 @@ import { useAuth } from './contexts/AuthContext';
 import {
   useProfileInsight,
   useDailyProfileData,
-  useAdPerformance,
-  useDailyAdData,
   useInfluencers,
   useSeedingList,
   useAffiliateLinks,
@@ -32,6 +30,7 @@ import {
   useFollowerDemographic,
   useProfileContent,
 } from './hooks/useApi';
+import { useAdStore } from './stores/adStore';
 import { useChannelTalk } from './hooks/useChannelTalk';
 
 // 탭 타입
@@ -83,10 +82,16 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
   // API 데이터 (Custom Hooks)
   const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useProfileInsight();
   const { data: dailyProfileData, loading: dailyProfileLoading, refetch: refetchDailyProfile } = useDailyProfileData(period);
-  const { data: adData, loading: adLoading, refetch: refetchAd } = useAdPerformance(user.id);
-  const { data: dailyAdData, loading: dailyAdLoading, refetch: refetchDailyAd } = useDailyAdData(period, user.id);
+  const adStore = useAdStore();
   const { data: influencers, loading: influencersLoading } = useInfluencers();
   const { data: seedingList, loading: seedingLoading } = useSeedingList();
+
+  // 광고 데이터 초기 로드
+  useEffect(() => {
+    if (user.id) {
+      adStore.fetchAllData(user.id);
+    }
+  }, [user.id, adStore.fetchAllData]);
 
   // seedingList가 로드되면 localSeedingList 초기화
   useEffect(() => {
@@ -120,15 +125,14 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
       refetchFollowerDemographic();
       refetchProfileContent();
     } else if (activeTab === 'ads') {
-      refetchAd();
-      refetchDailyAd();
+      adStore.refresh(user.id);
     }
-  }, [activeTab, refetchProfile, refetchDailyProfile, refetchFollowerDemographic, refetchProfileContent, refetchAd, refetchDailyAd]);
+  }, [activeTab, refetchProfile, refetchDailyProfile, refetchFollowerDemographic, refetchProfileContent, adStore.refresh, user.id]);
 
   // 로딩 상태 계산
   const isLoading = {
     profile: profileLoading || dailyProfileLoading || followerDemographicLoading || profileContentLoading,
-    ads: adLoading || dailyAdLoading,
+    ads: adStore.loading,
     campaign: influencersLoading || seedingLoading || affiliateLoading || contentLoading || aiLoading,
   };
 
@@ -255,11 +259,11 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
 
         {activeTab === 'ads' && (
           <AdsTab
-            adData={adData?.adPerformance || null}
-            dailyData={dailyAdData}
-            campaignData={adData?.campaignData || []}
-            campaignHierarchy={adData?.campaignHierarchy || []}
-            campaignDailyData={[]}
+            adData={adStore.adPerformance}
+            dailyData={adStore.dailyAdData}
+            campaignData={adStore.campaignPerformance}
+            campaignHierarchy={adStore.campaignHierarchy}
+            campaignDailyData={adStore.campaignDailyData}
             profileData={profileData}
             loading={isLoading.ads}
             period={period}
