@@ -20,7 +20,7 @@ export function AIAnalysisCard({
 }: AIAnalysisCardProps) {
   if (loading) {
     return (
-      <div className="bg-gradient-to-br from-primary-950 to-primary-900 rounded-2xl shadow-sm p-6 text-white">
+      <div className="bg-gradient-to-br from-primary-950 to-primary-900 rounded-2xl shadow-sm p-6 text-white min-h-[200px]">
         <div className="flex items-center gap-2 mb-4">
           <div className="p-2 bg-white/10 rounded-xl">
             <Sparkles size={20} className="text-amber-400" />
@@ -38,7 +38,7 @@ export function AIAnalysisCard({
 
   if (!analysis) {
     return (
-      <div className="bg-gradient-to-br from-primary-950 to-primary-900 rounded-2xl shadow-sm p-6 text-white">
+      <div className="bg-gradient-to-br from-primary-950 to-primary-900 rounded-2xl shadow-sm p-6 text-white min-h-[200px]">
         <div className="flex items-center gap-2 mb-4">
           <div className="p-2 bg-white/10 rounded-xl">
             <Sparkles size={20} className="text-amber-400" />
@@ -62,7 +62,7 @@ export function AIAnalysisCard({
   }
 
   return (
-    <div className="bg-gradient-to-br from-primary-950 to-primary-900 rounded-2xl shadow-sm p-6 text-white">
+    <div className="bg-gradient-to-br from-primary-950 to-primary-900 rounded-2xl shadow-sm p-6 text-white min-h-[200px]">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="p-2 bg-white/10 rounded-xl">
