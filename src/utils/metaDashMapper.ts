@@ -1375,11 +1375,14 @@ export function mapToCampaignHierarchyFromCampaignDetail(
       const adInsightsMap = new Map<string, { detail: typeof childObjs[0]['dashAdDetailEntity']; insights: typeof childObjs[0]['dashAdAccountInsight'][] }>();
       for (const child of childObjs) {
         const adId = child.dashAdDetailEntity?.adId;
+
         if (!adId) continue;
 
         // 기간 필터: 선택한 기간 범위 내 데이터만 포함
         const insightDate = child.dashAdAccountInsight?.time?.split('T')[0];
-        if (!insightDate || insightDate < startDate || insightDate > endDate) continue;
+        if (!insightDate || insightDate < startDate || insightDate > endDate) {
+          continue;
+        }
 
         const existing = adInsightsMap.get(adId);
         if (!existing) {

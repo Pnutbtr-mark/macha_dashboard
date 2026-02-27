@@ -98,12 +98,14 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ loading: true, error: null, currentUserId: userId });
 
     try {
-      // 오늘 기준 3일치 데이터 조회
-      const today = new Date();
-      const threeDaysAgo = new Date(today);
-      threeDaysAgo.setDate(today.getDate() - 2);
-      const startDate = threeDaysAgo.toISOString().split('T')[0];
-      const endDate = new Date().toISOString().split('T')[0];
+      // adStore와 동일하게 어제 기준 30일치 데이터 조회
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const endDate = yesterday.toISOString().split('T')[0];
+
+      const startDateObj = new Date();
+      startDateObj.setDate(startDateObj.getDate() - 30);
+      const startDate = startDateObj.toISOString().split('T')[0];
 
       // 4개 API를 캐싱과 함께 병렬 호출 (중복 방지됨)
       const [insights, followers, followerInsights, medias] = await Promise.all([
@@ -184,12 +186,14 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      // 오늘 기준 3일치 데이터 조회
-      const today = new Date();
-      const threeDaysAgo = new Date(today);
-      threeDaysAgo.setDate(today.getDate() - 2);
-      const startDate = threeDaysAgo.toISOString().split('T')[0];
-      const endDate = new Date().toISOString().split('T')[0];
+      // adStore와 동일하게 어제 기준 30일치 데이터 조회
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const endDate = yesterday.toISOString().split('T')[0];
+
+      const startDateObj = new Date();
+      startDateObj.setDate(startDateObj.getDate() - 30);
+      const startDate = startDateObj.toISOString().split('T')[0];
 
       // 캐시를 무시하고 강제로 새로 가져옴
       const [insights, followers, followerInsights, medias] = await Promise.all([
