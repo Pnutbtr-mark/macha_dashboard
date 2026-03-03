@@ -377,6 +377,8 @@ export interface DashAdSetStatisticsResponse {
   adSetName: string;
   status: string;
   responses: DashAdStatisticsInsight[];
+  adSetSummary?: unknown;               // 숫자, 문자열, 객체 등 다양한 형태 허용
+  ad_set_summary?: unknown;             // snake_case 대비
 }
 
 export interface DashAdStatisticsInsight {
@@ -391,6 +393,8 @@ export interface DashAdStatisticsInsight {
   cpc: number;
   ctr: number;
   purchaseRoas: ActionValue[];
+  actions?: ActionValue[];
+  costPerActionType?: ActionValue[];
 }
 
 // 상세 API 응답 (/api/v1/dash-ad/detail/ad-detail)

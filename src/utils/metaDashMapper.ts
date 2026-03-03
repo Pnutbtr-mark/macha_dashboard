@@ -1694,12 +1694,73 @@ export function convertInsightsToCampaignDetail(
   return result;
 }
 
+interface AdSetSummaryResult {
+  actionType: string;
+  value: number;
+}
+
+/**
+ * adSetSummary를 파싱하여 서버 indicator의 action_type과 value를 추출
+ * 서버 응답 형식: { results: [{ indicator: "actions:xxx", values: [{ value: "1" }] }] }
+ */
+function parseAdSetSummary(input: unknown): AdSetSummaryResult {
+  const defaultResult: AdSetSummaryResult = { actionType: '', value: 0 };
+
+  if (input == null) return defaultResult;
+
+  // 문자열 → JSON 파싱
+  if (typeof input === 'string') {
+    if (input === '') return defaultResult;
+    try {
+      const parsed = JSON.parse(input) as unknown;
+      return parseAdSetSummary(parsed);
+    } catch {
+      return defaultResult;
+    }
+  }
+
+  // 객체 → results[0].indicator + results[0].values[0].value
+  if (typeof input === 'object' && !Array.isArray(input)) {
+    const obj = input as Record<string, unknown>;
+    if (Array.isArray(obj.results) && obj.results.length > 0) {
+      const firstResult = obj.results[0] as Record<string, unknown>;
+
+      // indicator에서 action_type 추출 ("actions:xxx" → "xxx")
+      const indicator = String(firstResult.indicator || '');
+      const actionType = indicator.startsWith('actions:')
+        ? indicator.slice('actions:'.length)
+        : indicator;
+
+      // values[0].value 추출 (없으면 0)
+      let value = 0;
+      if (Array.isArray(firstResult.values) && firstResult.values.length > 0) {
+        const firstValue = firstResult.values[0] as Record<string, unknown>;
+        value = Math.max(0, Math.floor(Number(firstValue.value) || 0));
+      }
+
+      return { actionType, value };
+    }
+  }
+
+  return defaultResult;
+}
+
+/**
+ * total을 count개로 균등 배분 (나머지는 앞 insight에 +1)
+ */
+function distributeResults(total: number, count: number, index: number): number {
+  if (count <= 0 || total <= 0) return 0;
+  const base = Math.floor(total / count);
+  const remainder = total % count;
+  return index < remainder ? base + 1 : base;
+}
+
 /**
  * 새 통계/상세 분리 API 응답 → DashAdCampaignDetailItem[]로 변환
  * 기존 *FromCampaignDetail 매퍼들을 그대로 사용 가능
  *
- * 주의: 새 API에 actions/costPerActionType 필드가 없어
- * results/costPerResult는 0으로 반환됨
+ * adSetSummary 필드로 광고세트 결과 수를 각 insight에 균등 배분하여
+ * synthetic actions/costPerActionType을 주입
  */
 export function convertStatisticsToCampaignDetail(
   statistics: DashAdStatisticsResponse[],
@@ -1757,7 +1818,7 @@ export function convertStatisticsToCampaignDetail(
         dailyBudget: '0',
         lifetimeBudget: '0',
         billingEvent: 'IMPRESSIONS',
-        optimizationGoal: 'REACH',
+        optimizationGoal: '',
         bidStrategy: 'LOWEST_COST_WITHOUT_CAP',
         startTime: '',
         createdTime: '',
@@ -1769,8 +1830,13 @@ export function convertStatisticsToCampaignDetail(
         },
       };
 
+      // adSetSummary에서 action_type과 결과 수 추출 (snake_case 대비)
+      const rawSummary = adSetResp.adSetSummary ?? (adSetResp as unknown as Record<string, unknown>)['ad_set_summary'];
+      const { actionType, value: totalResults } = parseAdSetSummary(rawSummary);
+      const insightCount = (adSetResp.responses || []).length;
+
       // 각 인사이트를 AdSetChildObj로 변환
-      const adSetChildObjs: AdSetChildObj[] = (adSetResp.responses || []).map(insight => {
+      const adSetChildObjs: AdSetChildObj[] = (adSetResp.responses || []).map((insight, idx) => {
         const adDetail = adDetailMap.get(insight.adId);
 
         // DashAdDetailEntity 생성
@@ -1814,12 +1880,25 @@ export function convertStatisticsToCampaignDetail(
           lastSyncedAt: '',
           createdAt: '',
           updatedAt: '',
-          // actions/costPerActionType 없음 → undefined (매퍼에서 0 반환)
-          actions: undefined,
+          // 1순위: 서버가 actions를 직접 반환한 경우
+          // 2순위: adSetSummary 기반 균등 배분
+          actions: (() => {
+            if (insight.actions && insight.actions.length > 0) return insight.actions;
+            const distributed = distributeResults(totalResults, insightCount, idx);
+            return distributed > 0 && actionType
+              ? [{ action_type: actionType, value: distributed }]
+              : undefined;
+          })(),
           actionValues: undefined,
           purchaseRoas: insight.purchaseRoas,
           webSitePurchaseRoas: undefined,
-          costPerActionType: undefined,
+          costPerActionType: (() => {
+            if (insight.costPerActionType && insight.costPerActionType.length > 0) return insight.costPerActionType;
+            const distributed = distributeResults(totalResults, insightCount, idx);
+            return distributed > 0 && actionType
+              ? [{ action_type: actionType, value: (insight.spend || 0) / distributed }]
+              : undefined;
+          })(),
         };
 
         return { dashAdDetailEntity, dashAdAccountInsight };
