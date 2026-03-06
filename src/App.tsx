@@ -238,9 +238,17 @@ function Dashboard({ user, logout }: { user: NonNullable<ReturnType<typeof useAu
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <PeriodFilter
               period={period}
-              onChange={setPeriod}
+              onChange={(newPeriod) => {
+                setPeriod(newPeriod);
+                adStore.setPeriod(newPeriod);
+              }}
               customDateRange={customDateRange}
-              onCustomDateChange={(start, end) => setCustomDateRange({ start, end })}
+              onCustomDateChange={(start, end) => {
+                setCustomDateRange({ start, end });
+                if (period === 'custom') {
+                  adStore.setPeriod('custom', { start, end });
+                }
+              }}
             />
 
           </div>

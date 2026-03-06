@@ -1053,10 +1053,8 @@ export function mapToDailyAdDataFromCampaignDetail(
   period: PeriodType = 'daily',
   customRange?: { start: string; end: string }
 ): DailyAdData[] {
-  // 1. 먼저 모든 일별 데이터 생성
   const dailyData = generateDailyAdData(campaignDetails);
 
-  // 2. 기간에 따라 집계
   switch (period) {
     case 'daily':
       return dailyData;
@@ -1065,11 +1063,8 @@ export function mapToDailyAdDataFromCampaignDetail(
     case 'monthly':
       return aggregateAdByMonth(dailyData);
     case 'custom':
-      // 직접설정은 범위 내 일별 데이터 반환
       if (customRange) {
-        return dailyData.filter(data => {
-          return data.originalDate >= customRange.start && data.originalDate <= customRange.end;
-        });
+        return dailyData.filter(data => data.originalDate >= customRange.start && data.originalDate <= customRange.end);
       }
       return dailyData;
     default:
@@ -1518,13 +1513,22 @@ export function mapToCampaignHierarchyFromCampaignDetail(
 
 // 12. 캠페인 상세 응답에서 캠페인별 성과 변환
 export function mapToCampaignPerformanceFromCampaignDetail(
-  campaignDetails: DashAdCampaignDetailItem[]
+  campaignDetails: DashAdCampaignDetailItem[],
+  period: PeriodType = 'daily',
+  customRange?: { start: string; end: string }
 ): CampaignPerformance[] {
-  // 모든 광고 추출
+  // 현재 기간 범위 계산 (비교 기간 데이터 제외)
+  const { startDate, endDate } = getDateRangeForPeriod(period, undefined, customRange);
+
+  // 모든 광고 추출 + 현재 기간 필터링
   const allAds = campaignDetails
     .flatMap(detail => detail.adDetailResponseObjs || [])
     .flatMap(adDetailObj => adDetailObj.adSetChildObjs || [])
-    .filter(child => child.dashAdDetailEntity && child.dashAdAccountInsight);
+    .filter(child => {
+      if (!child.dashAdDetailEntity || !child.dashAdAccountInsight) return false;
+      const insightDate = child.dashAdAccountInsight.time?.split('T')[0];
+      return insightDate && insightDate >= startDate && insightDate <= endDate;
+    });
 
   if (allAds.length === 0) {
     return [];
@@ -1700,10 +1704,9 @@ interface AdSetSummaryResult {
 }
 
 /**
- * adSetSummary를 파싱하여 서버 indicator의 action_type과 value를 추출
- * 서버 응답 형식: { results: [{ indicator: "actions:xxx", values: [{ value: "1" }] }] }
+ * 단일 adSetSummary JSON 문자열/객체에서 actionType과 value를 추출
  */
-function parseAdSetSummary(input: unknown): AdSetSummaryResult {
+function parseSingleAdSetSummary(input: unknown): AdSetSummaryResult {
   const defaultResult: AdSetSummaryResult = { actionType: '', value: 0 };
 
   if (input == null) return defaultResult;
@@ -1713,7 +1716,7 @@ function parseAdSetSummary(input: unknown): AdSetSummaryResult {
     if (input === '') return defaultResult;
     try {
       const parsed = JSON.parse(input) as unknown;
-      return parseAdSetSummary(parsed);
+      return parseSingleAdSetSummary(parsed);
     } catch {
       return defaultResult;
     }
@@ -1743,6 +1746,38 @@ function parseAdSetSummary(input: unknown): AdSetSummaryResult {
   }
 
   return defaultResult;
+}
+
+/**
+ * adSetSummary를 파싱하여 서버 indicator의 action_type과 value를 추출
+ * 배열(일별 JSON 문자열): 각 항목의 value를 합산, actionType은 첫 항목 기준
+ * 하위 호환: 단일 문자열/객체도 처리
+ */
+function parseAdSetSummary(input: unknown): AdSetSummaryResult {
+  const defaultResult: AdSetSummaryResult = { actionType: '', value: 0 };
+
+  if (input == null) return defaultResult;
+
+  // 배열 → 각 항목 파싱 후 value 합산
+  if (Array.isArray(input)) {
+    if (input.length === 0) return defaultResult;
+
+    let actionType = '';
+    let totalValue = 0;
+
+    for (const item of input) {
+      const parsed = parseSingleAdSetSummary(item);
+      if (actionType === '' && parsed.actionType !== '') {
+        actionType = parsed.actionType;
+      }
+      totalValue += parsed.value;
+    }
+
+    return { actionType, value: totalValue };
+  }
+
+  // 하위 호환: 단일 문자열/객체
+  return parseSingleAdSetSummary(input);
 }
 
 /**

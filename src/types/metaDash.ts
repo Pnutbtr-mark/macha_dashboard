@@ -377,8 +377,8 @@ export interface DashAdSetStatisticsResponse {
   adSetName: string;
   status: string;
   responses: DashAdStatisticsInsight[];
-  adSetSummary?: unknown;               // 숫자, 문자열, 객체 등 다양한 형태 허용
-  ad_set_summary?: unknown;             // snake_case 대비
+  adSetSummary?: string[];               // 일별 JSON 문자열 배열
+  ad_set_summary?: string[];             // snake_case 대비
 }
 
 export interface DashAdStatisticsInsight {
