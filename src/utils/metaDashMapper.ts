@@ -1781,6 +1781,54 @@ function parseAdSetSummary(input: unknown): AdSetSummaryResult {
 }
 
 /**
+ * adSetSummary 배열을 날짜별 Map으로 파싱
+ * key: date_start (YYYY-MM-DD), value: { actionType, value }
+ */
+function parseAdSetSummaryByDate(input: unknown): Map<string, AdSetSummaryResult> {
+  const dateMap = new Map<string, AdSetSummaryResult>();
+  if (!Array.isArray(input)) return dateMap;
+
+  for (const item of input) {
+    if (item == null) continue;
+
+    // JSON 문자열 → 객체로 파싱
+    let obj: Record<string, unknown>;
+    if (typeof item === 'string') {
+      if (item === '') continue;
+      try {
+        obj = JSON.parse(item) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+    } else if (typeof item === 'object' && !Array.isArray(item)) {
+      obj = item as Record<string, unknown>;
+    } else {
+      continue;
+    }
+
+    // date_start 추출
+    const dateStart = String(obj.date_start || '').split('T')[0];
+    if (!dateStart) continue;
+
+    // actionType + value 추출 (parseSingleAdSetSummary 재활용)
+    const parsed = parseSingleAdSetSummary(obj);
+
+    // 같은 날짜가 여러 항목에 있으면 value 합산
+    const existing = dateMap.get(dateStart);
+    if (existing) {
+      dateMap.set(dateStart, {
+        actionType: existing.actionType || parsed.actionType,
+        value: existing.value + parsed.value,
+      });
+    } else {
+      dateMap.set(dateStart, parsed);
+    }
+  }
+
+  return dateMap;
+}
+
+/**
  * total을 count개로 균등 배분 (나머지는 앞 insight에 +1)
  */
 function distributeResults(total: number, count: number, index: number): number {
@@ -1865,13 +1913,23 @@ export function convertStatisticsToCampaignDetail(
         },
       };
 
-      // adSetSummary에서 action_type과 결과 수 추출 (snake_case 대비)
+      // adSetSummary에서 날짜별 action_type과 결과 수 추출 (snake_case 대비)
       const rawSummary = adSetResp.adSetSummary ?? (adSetResp as unknown as Record<string, unknown>)['ad_set_summary'];
-      const { actionType, value: totalResults } = parseAdSetSummary(rawSummary);
-      const insightCount = (adSetResp.responses || []).length;
+      const summaryByDate = parseAdSetSummaryByDate(rawSummary);
+      // 폴백: 배열이 아닌 경우(하위 호환)는 기존 방식 사용
+      const fallbackSummary = summaryByDate.size === 0 ? parseAdSetSummary(rawSummary) : null;
+
+      // responses를 날짜별로 그룹핑하여 각 날짜의 response 수를 파악
+      const responses = adSetResp.responses || [];
+      const dateResponseCounts = new Map<string, number>();
+      const dateResponseIndices = new Map<string, number>();
+      for (const r of responses) {
+        const date = (r.time || '').split('T')[0];
+        dateResponseCounts.set(date, (dateResponseCounts.get(date) || 0) + 1);
+      }
 
       // 각 인사이트를 AdSetChildObj로 변환
-      const adSetChildObjs: AdSetChildObj[] = (adSetResp.responses || []).map((insight, idx) => {
+      const adSetChildObjs: AdSetChildObj[] = responses.map((insight, idx) => {
         const adDetail = adDetailMap.get(insight.adId);
 
         // DashAdDetailEntity 생성
@@ -1899,6 +1957,28 @@ export function convertStatisticsToCampaignDetail(
           callToActionLink: null,
         };
 
+        // adSetSummary 날짜별 매칭으로 결과 수 배분
+        const insightDate = (insight.time || '').split('T')[0];
+        let summaryDistributed = 0;
+        let summaryActionType = '';
+
+        if (!(insight.actions && insight.actions.length > 0)) {
+          if (fallbackSummary) {
+            // 하위 호환: 배열이 아닌 경우 기존 균등 배분
+            summaryDistributed = distributeResults(fallbackSummary.value, responses.length, idx);
+            summaryActionType = fallbackSummary.actionType;
+          } else {
+            const dateSummary = summaryByDate.get(insightDate);
+            if (dateSummary && dateSummary.value > 0) {
+              const dateCount = dateResponseCounts.get(insightDate) || 1;
+              const dateIdx = dateResponseIndices.get(insightDate) || 0;
+              summaryDistributed = distributeResults(dateSummary.value, dateCount, dateIdx);
+              summaryActionType = dateSummary.actionType;
+              dateResponseIndices.set(insightDate, dateIdx + 1);
+            }
+          }
+        }
+
         // DashAdAccountInsight 생성
         const dashAdAccountInsight: DashAdAccountInsight = {
           id: `${insight.adId}_${insight.time}`,
@@ -1916,12 +1996,12 @@ export function convertStatisticsToCampaignDetail(
           createdAt: '',
           updatedAt: '',
           // 1순위: 서버가 actions를 직접 반환한 경우
-          // 2순위: adSetSummary 기반 균등 배분
+          // 2순위: adSetSummary 날짜별 매칭 → 해당 날짜 response 수로 배분
+          // 3순위: 폴백(하위 호환) — 전체 합산 기반 균등 배분
           actions: (() => {
             if (insight.actions && insight.actions.length > 0) return insight.actions;
-            const distributed = distributeResults(totalResults, insightCount, idx);
-            return distributed > 0 && actionType
-              ? [{ action_type: actionType, value: distributed }]
+            return summaryDistributed > 0 && summaryActionType
+              ? [{ action_type: summaryActionType, value: summaryDistributed }]
               : undefined;
           })(),
           actionValues: undefined,
@@ -1929,9 +2009,8 @@ export function convertStatisticsToCampaignDetail(
           webSitePurchaseRoas: undefined,
           costPerActionType: (() => {
             if (insight.costPerActionType && insight.costPerActionType.length > 0) return insight.costPerActionType;
-            const distributed = distributeResults(totalResults, insightCount, idx);
-            return distributed > 0 && actionType
-              ? [{ action_type: actionType, value: (insight.spend || 0) / distributed }]
+            return summaryDistributed > 0 && summaryActionType
+              ? [{ action_type: summaryActionType, value: (insight.spend || 0) / summaryDistributed }]
               : undefined;
           })(),
         };
